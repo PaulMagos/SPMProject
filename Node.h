@@ -39,10 +39,14 @@ class Node{
         void setRightChild(Node* node){
             this->right = node;
         }
-        bool operator < (const Node& node) const
+
+        struct cmp
+        {
+            bool operator()(Node* node1, Node* node2) const
             {
-                return (this->value > node.getValue());
+                return (node1->getValue() > node2->getValue());
             }
+        };
 };
 
 

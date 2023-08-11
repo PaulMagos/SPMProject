@@ -181,6 +181,8 @@ void encode(const string& outputName, const string& inputFile){
                 }
             }
         }
+        cout << "Writing to file" << endl;
+        cout << "Bits: " << encodedString << endl;
         uint8_t n = 0;
         uint8_t value = 0;
         for (auto c: encodedString) {
