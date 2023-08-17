@@ -7,9 +7,9 @@
 #include <thread>
 #include <map>
 #include <queue>
-#include <functional>
 #include "./Node.h"
 #include "./utils/utimer.cpp"
+#include "./BlockingQueue.h"
 
 using namespace std;
 
@@ -35,6 +35,7 @@ int main(int argc, char* argv[])
     char option;
     vector<int> ascii(ASCII_MAX, 0);
     string inputFile, encodedFile, decodedFile;
+    BlockingQueue tasks = BlockingQueue();
     int numThreads = 4;
 
     inputFile = "./TestFiles/";
@@ -94,20 +95,6 @@ vector<int> readFrequencies(const string& inputFile, int numThreads){
         string line;
         size_t len = str.length();
 
-        for (int i = 0; i < numThreads; i++){
-            line = str.substr(i * (len / numThreads), len / (numThreads - ((numThreads-1)*(i==numThreads-1))));
-            threads.emplace_back([line, &ascii, i]
-            {
-                for (char j : line) { ascii[i][j]++; }
-            });
-        }
-        for (int i = 0; i < numThreads; i++) {
-            threads[i].join();
-        }
-        for (int i = 1; i < numThreads; i++)
-        for (int j = 0; j < ASCII_MAX; j++) {
-            ascii[0][j] += ascii[i][j];
-        }
     }
     return ascii[0];
 }

@@ -1,7 +1,7 @@
 #include <list>
 #include <mutex>
-
 using namespace std;
+
 
 template <typename T> class BlockingQueue
 {
@@ -11,7 +11,8 @@ private:
     std::mutex _queue_mutex;
 
 public:
-    BlockingQueue() : _queue(){};
+    BlockingQueue() : _queue(){}; // default constructor
+    BlockingQueue() : _queue(new list<T>){}; // default constructor
     void push(T item) {
         std::lock_guard<std::mutex> queue_lock(_queue_mutex);
         _queue.push_back(item);

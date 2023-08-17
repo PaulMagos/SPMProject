@@ -130,32 +130,29 @@ void createMap(Node root, map<int, string> *map, const string &prefix){
 }
 
 string createOutput(const string& inputFile, map<int, string> myMap) {
+    string str;
+    ifstream myFile (inputFile);
     {
-        utimer timer("create output");
-        ifstream myFile (inputFile);
-        string bits;
-        int byte;
-        if (myFile.is_open()) {
-            while (myFile) {
-                // Get char
-                byte = (myFile).get();
-                // If not EOF
-                if (byte != EOF) {
-                    bits.append(myMap[byte]);
-                }
-            }
+        utimer timer("Load file 2nd");
+        stringstream buffer;
+        buffer << myFile.rdbuf(); //read the file
+        str = buffer.str(); //str holds the content of the file
+    }
+    {
+        utimer timer("Create output");
+        string output;
+        for (char i : str) {
+            output += myMap[i];
         }
-        return bits;
+        return output;
     }
 }
 
 void writeToFile(const string& bits, const string& encodedFile){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
-//    cout << "Writing to file" << endl;
-//    cout << "Bits: " << bits << endl;
     {
         utimer timer("write to file");
-        uint8_t n = 0;
+        uint64_t n = 0;
         uint8_t value = 0;
         for(auto c : bits)
         {
