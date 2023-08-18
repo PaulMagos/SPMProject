@@ -16,9 +16,11 @@ class ThreadPool
         bool debug = false;                       // Tells threads to stop looking for jobs
 
     private:
-        void ThreadLoop();
+        void ThreadLoop(uint32_t thread_id = 0);
 
+        uint32_t num_threads;
         bool should_terminate = false;           // Tells threads to stop looking for jobs
+        vector<bool> thread_busy;                // Tells threads to stop looking for jobs
         mutex queue_mutex;                  // Prevents data races to the job queue
         condition_variable mutex_condition; // Allows threads to wait on new jobs or termination
         vector<thread> threads;
@@ -27,16 +29,17 @@ class ThreadPool
 
 void ThreadPool::Start(int numThreads) {
     int max =  (int)thread::hardware_concurrency();  // Max # of threads the system supports
-    const uint32_t num_threads = (numThreads > max) ? max : numThreads;
+    num_threads = (numThreads > max) ? max : numThreads;
     for (uint32_t i = 0; i < num_threads; ++i) {
         threads.emplace_back(&ThreadPool::ThreadLoop,this);
     }
 }
 
-void ThreadPool::ThreadLoop() {
+void ThreadPool::ThreadLoop(uint32_t thread_id) {
     while (true) {
         std::function<void()> job;
         {
+            thread_busy[thread_id] = false;
             std::unique_lock<std::mutex> lock(queue_mutex);
             if(debug) cout << "Thread " << this_thread::get_id() << " waiting for job" << endl;
             mutex_condition.wait(lock, [this] {
@@ -49,6 +52,7 @@ void ThreadPool::ThreadLoop() {
             job = jobs.front();
             jobs.pop();
         }
+        thread_busy[thread_id] = true;
         if(debug) cout << "Thread " << this_thread::get_id() << " executing job" << endl;
         job();
     }
@@ -75,5 +79,8 @@ void ThreadPool::Stop() {
 
 bool ThreadPool::busy() {
     std::lock_guard<std::mutex> lock(queue_mutex);
+    for (int i = 0; i < num_threads; i++) {
+        if (thread_busy[i]) return true;
+    }
     return !jobs.empty();
 }

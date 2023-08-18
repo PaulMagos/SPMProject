@@ -29,10 +29,10 @@ using namespace std;
 #define OPT_LIST "hi:p:t:"
 
 Node buildTree(vector<int> ascii);
-void writeToFile(const vector<string>& bits, const string& encodedFile);
+void writeToFile(const string& bits, const string& encodedFile);
 vector<int> readFrequencies(const string& inputFile, int numThreads);
 void createMap(Node root, map<int, string> *map, const string &prefix = "");
-vector<string> createOutput(const string& inputFile, map<int, string> myMap, int numThreads);
+string createOutput(const string& inputFile, map<int, string> myMap, int numThreads);
 
 ThreadPool pool;
 
@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
             createMap(buildTree(ascii), &myMap);
         }
         ifstream myFile2 (inputFile);
-        vector<string> output = createOutput(inputFile, myMap, numThreads);
+        string output = createOutput(inputFile, myMap, numThreads);
         writeToFile(output, encodedFile);
         pool.Stop();
     }
@@ -93,30 +93,30 @@ vector<int> readFrequencies(const string& inputFile, int numThreads){
     uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
     ifstream myFile (inputFile);
     uintmax_t size = len / numThreads;
-    mutex asciiMutex;
     {
         utimer timer("Calculate freq");
-        vector<vector<int> > asciiTEMP(numThreads);
-        vector<int> ascii(ASCII_MAX, 0);
+        vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
-            myFile.seekg(i * (len / numThreads));
+            myFile.seekg(i * size);
             if (i == numThreads-1){
                 size = (len- (i*size));
             }
             string line(size, ' ');
             myFile.read( &line[0], size);
-            pool.QueueJob( [line, &ascii, &asciiMutex]
+            pool.QueueJob( [line, &ascii, i]
                          {
-                             {
-                                 lock_guard<mutex> lock(asciiMutex);
-                                 for (char j : (string)line)
-                                     ascii[j]++;
-                             }
+                             for (char j : line)
+                                 ascii[i][j]++;
                          });
         }
         while (pool.busy());
-        return ascii;
+        for (int i = 1; i < numThreads; i++){
+            for (int j = 0; j < ASCII_MAX; j++){
+                ascii[0][j] += ascii[i][j];
+            }
+        }
+        return ascii[0];
     }
 }
 
@@ -157,7 +157,7 @@ void createMap(Node root, map<int, string> *map, const string &prefix){
     }
 }
 
-vector<string> createOutput(const string& inputFile, map<int, string> myMap, int numThreads) {
+string createOutput(const string& inputFile, map<int, string> myMap, int numThreads) {
     // Read file
     uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
     ifstream myFile (inputFile);
@@ -165,8 +165,6 @@ vector<string> createOutput(const string& inputFile, map<int, string> myMap, int
     vector<string> bits(numThreads);
     {
         utimer timer("create output");
-        vector<std::thread> threads;
-        threads.reserve(numThreads);
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
             myFile.seekg(i * size);
@@ -175,30 +173,30 @@ vector<string> createOutput(const string& inputFile, map<int, string> myMap, int
             }
             string line(size, ' ');
             myFile.read( &line[0], size);
-            threads.emplace_back( [&bits, line, &myMap, i]
+            pool.QueueJob( [&bits, line, &myMap, i]
                      {
                          for (char j : (string)line) {
                              bits[i].append(myMap[j]);
                          }
                      });
         }
+        string output;
         while (pool.busy());
-        return bits;
+        for (int i = 0; i < numThreads; i++){
+            output.append(bits[i]);
+        }
+        return output;
     }
 }
 
-void writeToFile(const vector<string>& bits, const string& encodedFile){
+void writeToFile(const string& bits, const string& encodedFile){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
-    string bit;
-    for (const auto &bit1 : bits) {
-        bit.append(bit1);
-    }
     string output;
     {
         utimer timer("write to file");
         uint64_t n = 0;
         uint8_t value = 0;
-        for(auto c : bit)
+        for(auto c : bits)
         {
             value |= static_cast<uint8_t>(c == '1') << n;
             if(++n == 8)
