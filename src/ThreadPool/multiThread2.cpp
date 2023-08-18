@@ -11,6 +11,7 @@
 #include <thread>
 #include <map>
 #include <queue>
+#include <functional>
 #include "../utils/Node.h"
 #include "../utils/utimer.cpp"
 #include "./ThreadPool.cpp"
@@ -89,21 +90,23 @@ std::ifstream::pos_type filesize(const char* filename)
 
 vector<int> readFrequencies(const string& inputFile, int numThreads){
     // Read file
-    int len = (int) filesize(inputFile.c_str());
+    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
     ifstream myFile (inputFile);
-    int size = len / numThreads;
+    uintmax_t size = len / numThreads;
     mutex asciiMutex;
     {
         utimer timer("Calculate freq");
-        vector<vector<int>> asciiTEMP(numThreads);
+        vector<vector<int> > asciiTEMP(numThreads);
         vector<int> ascii(ASCII_MAX, 0);
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
             myFile.seekg(i * (len / numThreads));
-            size += (len- ((i+1)*size))*(i==numThreads-1);
+            if (i == numThreads-1){
+                size = (len- (i*size));
+            }
             string line(size, ' ');
             myFile.read( &line[0], size);
-            pool.QueueJob([line, &ascii, &asciiMutex]
+            pool.QueueJob( [line, &ascii, &asciiMutex]
                          {
                              {
                                  lock_guard<mutex> lock(asciiMutex);
@@ -156,9 +159,9 @@ void createMap(Node root, map<int, string> *map, const string &prefix){
 
 vector<string> createOutput(const string& inputFile, map<int, string> myMap, int numThreads) {
     // Read file
-    int len = (int) filesize(inputFile.c_str());
+    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
     ifstream myFile (inputFile);
-    int size = len / numThreads;
+    uintmax_t size = len / numThreads;
     vector<string> bits(numThreads);
     {
         utimer timer("create output");
@@ -166,11 +169,13 @@ vector<string> createOutput(const string& inputFile, map<int, string> myMap, int
         threads.reserve(numThreads);
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
-            myFile.seekg(i * (len / numThreads));
-            size += (len- ((i+1)*size))*(i==numThreads-1);
-            string line(size, '\0');
+            myFile.seekg(i * size);
+            if (i == numThreads-1){
+                size = (len- (i*size));
+            }
+            string line(size, ' ');
             myFile.read( &line[0], size);
-            threads.emplace_back([&bits, line, &myMap, i]
+            threads.emplace_back( [&bits, line, &myMap, i]
                      {
                          for (char j : (string)line) {
                              bits[i].append(myMap[j]);

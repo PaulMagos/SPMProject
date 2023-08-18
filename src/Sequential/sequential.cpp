@@ -57,11 +57,10 @@ int main(int argc, char* argv[])
         utimer timer("Total");
         ifstream myFile (inputFile);
         readFrequencies(&ascii, myFile);
-        Node root = buildTree(ascii);
         map<int, string> myMap;
         {
             utimer t("createMap");
-            createMap(root, &myMap);
+            createMap(buildTree(ascii), &myMap);
         }
         ifstream myFile2 (inputFile);
         string output = createOutput(inputFile, myMap);
@@ -85,8 +84,6 @@ void readFrequencies(vector<int>* ascii, ifstream &myFile){
 // Method for building the tree
 Node buildTree(vector<int> ascii)
 {
-    {
-        utimer timer("build tree");
         Node *lChild, *rChild, *top;
         // Min Heap
         priority_queue<Node *, vector<Node *>, Node::cmp> minHeap;
@@ -110,7 +107,6 @@ Node buildTree(vector<int> ascii)
             minHeap.push(top);
         }
         return *minHeap.top();
-    }
 }
 
 void createMap(Node root, map<int, string> *map, const string &prefix){
@@ -141,7 +137,7 @@ void writeToFile(const string& bits, const string& encodedFile){
     string output;
     {
         utimer timer("write to file");
-        uint64_t n = 0;
+        uint8_t n = 0;
         uint8_t value = 0;
         for(auto c : bits)
         {
@@ -149,7 +145,6 @@ void writeToFile(const string& bits, const string& encodedFile){
             if(++n == 8)
             {
                 output.append((char*) (&value), 1);
-//                outputFile.write((char*) (&value), 1);
                 n = 0;
                 value = 0;
             }
@@ -160,7 +155,6 @@ void writeToFile(const string& bits, const string& encodedFile){
                 value |= static_cast<uint8_t>(0) << n;
                 n++;
             }
-//            outputFile.write((char*) (&value), 1);
             output.append((char*) (&value), 1);
         }
         outputFile << output;

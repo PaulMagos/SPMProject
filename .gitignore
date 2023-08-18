@@ -1,2 +1,3 @@
 ./data/EncodedFiles/
-./data/TestFiles/test*
+./data/TestFiles/*.*
+/data/EncodedFiles/Threads/*.*

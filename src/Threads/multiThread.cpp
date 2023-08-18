@@ -80,9 +80,9 @@ std::ifstream::pos_type filesize(const char* filename)
 
 vector<int> readFrequencies(const string& inputFile, int numThreads){
     // Read file
-    uint len = (int) filesize(inputFile.c_str());
+    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
     ifstream myFile (inputFile, ios::binary | ios::ate);
-    uint size = len / numThreads;
+    uintmax_t size = len / numThreads;
     {
         utimer timer("Calculate freq");
         vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
@@ -90,9 +90,11 @@ vector<int> readFrequencies(const string& inputFile, int numThreads){
         threads.reserve(numThreads);
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
-            myFile.seekg(i * (len / numThreads));
-            size += (len- ((i+1)*size))*(i==numThreads-1);
-            string line(size, '\0');
+            myFile.seekg(i * size);
+            if (i == numThreads-1){
+                size = (len-(i*size));
+            }
+            string line(size, ' ');
             myFile.read( &line[0], size);
             threads.emplace_back([line, &ascii, i]
                           {
@@ -102,7 +104,8 @@ vector<int> readFrequencies(const string& inputFile, int numThreads){
         }
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
-            if (i != 0)
+        }
+        for (int i = 1; i < numThreads; i++) {
             for (int j = 0; j < ASCII_MAX; j++) {
                 ascii[0][j] += ascii[i][j];
             }
@@ -150,9 +153,9 @@ void createMap(Node root, map<int, string> *map, const string &prefix){
 
 string createOutput(const string& inputFile, map<int, string> myMap, int numThreads) {
     // Read file
-    uint len = (int) filesize(inputFile.c_str());
+    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
     ifstream myFile (inputFile, ios::binary | ios::ate);
-    uint size = len / numThreads;
+    uintmax_t size = len / numThreads;
     {
         utimer timer("create output");
         vector<string> bits(numThreads);
@@ -160,22 +163,25 @@ string createOutput(const string& inputFile, map<int, string> myMap, int numThre
         threads.reserve(numThreads);
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
+            myFile.seekg(i * size);
+            if (i == numThreads-1){
+                size = (len- (i*size));
+            }
             string line(size, '\0');
-            myFile.seekg(i * (len / numThreads));
-            size += (len- ((i+1)*size))*(i==numThreads-1);
             myFile.read( &line[0], size);
             threads.emplace_back([&bits, line, &myMap, i]
-                                 {
-                                     for (char j : (string)line) {
-                                         bits[i].append(myMap[j]);
-                                     }
-                                 });
+                     {
+                         for (char j : (string)line) {
+                             bits[i].append(myMap[j]);
+                         }
+                     });
         }
         string output;
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
-            output.append(bits[i]);
         }
+        for (int i = 0; i < numThreads; i++)
+            output.append(bits[i]);
         return output;
     }
 }
@@ -185,7 +191,7 @@ void writeToFile(const string& bits, const string& encodedFile){
     string output;
     {
         utimer timer("write to file");
-        uint64_t n = 0;
+        uint8_t n = 0;
         uint8_t value = 0;
         for(auto c : bits)
         {
@@ -193,7 +199,6 @@ void writeToFile(const string& bits, const string& encodedFile){
             if(++n == 8)
             {
                 output.append((char*) (&value), 1);
-//                outputFile.write((char*) (&value), 1);
                 n = 0;
                 value = 0;
             }
@@ -204,7 +209,6 @@ void writeToFile(const string& bits, const string& encodedFile){
                 value |= static_cast<uint8_t>(0) << n;
                 n++;
             }
-//            outputFile.write((char*) (&value), 1);
             output.append((char*) (&value), 1);
         }
         outputFile << output;
