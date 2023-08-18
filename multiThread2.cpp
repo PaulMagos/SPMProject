@@ -1,13 +1,20 @@
-#include <iostream>
+//
+// Created by p.magos on 8/17/23.
+//
+
 #include <sstream>
+#include <iostream>
 #include <utility>
 #include <vector>
 #include <getopt.h>
 #include <fstream>
+#include <thread>
 #include <map>
 #include <queue>
+#include <functional>
 #include "./Node.h"
 #include "./utils/utimer.cpp"
+#include "./ThreadPool.cpp"
 
 using namespace std;
 
@@ -19,22 +26,22 @@ using namespace std;
  * p encoded file path
  * o decoded file path
  */
-#define OPT_LIST "hi:p:"
+#define OPT_LIST "hi:p:t:"
 
 Node buildTree(vector<int> ascii);
-void readFrequencies(vector<int>* ascii, ifstream &myFile);
 void writeToFile(const string& bits, const string& encodedFile);
+vector<int> readFrequencies(const string& inputFile, int numThreads);
 void createMap(Node root, map<int, string> *map, const string &prefix = "");
-string createOutput(const string& inputFile, map<int, string> myMap);
+string createOutput(const string& inputFile, map<int, string> myMap, int numThreads);
 
-
-
+ThreadPool pool;
 int main(int argc, char* argv[])
 {
 
     char option;
     vector<int> ascii(ASCII_MAX, 0);
     string inputFile, encodedFile, decodedFile;
+    int numThreads = 4;
 
     inputFile = "./TestFiles/";
     encodedFile = "./EncodedFiles/";
@@ -47,16 +54,20 @@ int main(int argc, char* argv[])
             case 'p':
                 encodedFile += optarg;
                 break;
+            case 't':
+                numThreads = (int)atoi(optarg);
+                break;
             default:
                 cout << "Invalid option" << endl;
                 return 1;
         }
     }
 
+
     {
         utimer timer("Total");
-        ifstream myFile (inputFile);
-        readFrequencies(&ascii, myFile);
+        pool.Start(numThreads);
+        ascii = readFrequencies(inputFile, numThreads);
         Node root = buildTree(ascii);
         map<int, string> myMap;
         {
@@ -64,14 +75,17 @@ int main(int argc, char* argv[])
             createMap(root, &myMap);
         }
         ifstream myFile2 (inputFile);
-        string output = createOutput(inputFile, myMap);
+        string output = createOutput(inputFile, myMap, numThreads);
         writeToFile(output, encodedFile);
+        pool.Stop();
     }
     return 0;
 }
 
-void readFrequencies(vector<int>* ascii, ifstream &myFile){
+vector<int> readFrequencies(const string& inputFile, int numThreads){
     // Read file
+    ifstream myFile (inputFile);
+    vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
     string str;
     {
         utimer timer("Load file");
@@ -81,12 +95,26 @@ void readFrequencies(vector<int>* ascii, ifstream &myFile){
     }
     {
         utimer timer("Calculate freq");
-
+        vector<std::thread> threads;
+        threads.reserve(numThreads);
         // Read file line by line
-        for (char i : str) {
-            (*ascii)[i]++;
+        string line;
+        size_t len = str.length();
+
+        for (int i = 0; i < numThreads; i++){
+            line = str.substr(i * (len / numThreads), len / (numThreads - ((numThreads-1)*(i==numThreads-1))));
+            pool.QueueJob([line, &ascii, i]
+                                 {
+                                     for (char j : line) { ascii[i][j]++;}
+                                 });
         }
+        while (pool.busy());
+        for (int i = 1; i < numThreads; i++)
+            for (int j = 0; j < ASCII_MAX; j++) {
+                ascii[0][j] += ascii[i][j];
+            }
     }
+    return ascii[0];
 }
 
 // Method for building the tree
@@ -129,21 +157,32 @@ void createMap(Node root, map<int, string> *map, const string &prefix){
     }
 }
 
-string createOutput(const string& inputFile, map<int, string> myMap) {
-    string str;
+string createOutput(const string& inputFile, map<int, string> myMap, int numThreads) {
     ifstream myFile (inputFile);
     {
-        utimer timer("Load file 2nd");
-        stringstream buffer;
-        buffer << myFile.rdbuf(); //read the file
-        str = buffer.str(); //str holds the content of the file
-    }
-    {
-        utimer timer("Create output");
-        string output;
-        for (char i : str) {
-            output += myMap[i];
+        utimer timer("create output");
+        vector<string> bits(numThreads);
+        int len = myFile.tellg();
+        char *str;
+        int j = 0;
+        while (!myFile.eof() && !myFile.fail())
+        {
+            std::vector<char> c(len / (numThreads - ((numThreads - 1) * (j == numThreads - 1))));
+            myFile.read(c.data(), len / (numThreads - ((numThreads - 1) * (j == numThreads - 1))));
+            c.resize(myFile.gcount());
+            auto bit = bits[j];
+            pool.QueueJob( [&bit, str, &myMap]       {
+                for (auto k :  (string)str)
+                    bit.append(myMap[k]);
+            });
+            j++;
         }
+        string output;
+        while (pool.busy());
+        for (int i = 0; i < numThreads; i++) {
+            output.append(bits[i]);
+        }
+        myFile.close();
         return output;
     }
 }

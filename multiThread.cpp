@@ -58,7 +58,6 @@ int main(int argc, char* argv[])
     }
 
 
-
     {
         utimer timer("Total");
         ascii = readFrequencies(inputFile, numThreads);
@@ -98,7 +97,7 @@ vector<int> readFrequencies(const string& inputFile, int numThreads){
             line = str.substr(i * (len / numThreads), len / (numThreads - ((numThreads-1)*(i==numThreads-1))));
             threads.emplace_back([line, &ascii, i]
             {
-                for (char j : line) { ascii[i][j]++; }
+                 for (char j : line) { ascii[i][j]++;}
             });
         }
         for (int i = 0; i < numThreads; i++) {
@@ -188,6 +187,7 @@ string createOutput(const string& inputFile, map<int, string> myMap, int numThre
 
 void writeToFile(const string& bits, const string& encodedFile){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
+    string output;
     {
         utimer timer("write to file");
         uint64_t n = 0;
@@ -197,7 +197,8 @@ void writeToFile(const string& bits, const string& encodedFile){
             value |= static_cast<uint8_t>(c == '1') << n;
             if(++n == 8)
             {
-                outputFile.write((char*) (&value), 1);
+                output.append((char*) (&value), 1);
+//                outputFile.write((char*) (&value), 1);
                 n = 0;
                 value = 0;
             }
@@ -208,8 +209,10 @@ void writeToFile(const string& bits, const string& encodedFile){
                 value |= static_cast<uint8_t>(0) << n;
                 n++;
             }
-            outputFile.write((char*) (&value), 1);
+//            outputFile.write((char*) (&value), 1);
+            output.append((char*) (&value), 1);
         }
+        outputFile << output;
         outputFile.close();
     }
 }
