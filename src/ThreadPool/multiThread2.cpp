@@ -13,7 +13,7 @@
 #include <queue>
 #include "../utils/Node.h"
 #include "../utils/utimer.cpp"
-#include "./ThreadPool.cpp"
+#include "./ThreadPool2.cpp"
 
 using namespace std;
 
@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
     int numThreads = 4;
 
     inputFile = "./data/TestFiles/";
-    encodedFile = "./data/EncodedFiles/ThreadPool/";
+    encodedFile = "./data/EncodedFiles/ThreadPool2/";
 
     while((option = (char)getopt(argc, argv, OPT_LIST)) != -1){
         switch (option) {
@@ -188,35 +188,6 @@ string createOutput(const string& inputFile, map<int, string> myMap, int numThre
     }
 }
 
-//void writeToFile(const string& bits, const string& encodedFile){
-//    ofstream outputFile(encodedFile, ios::binary | ios::out);
-//    string output;
-//    {
-//        utimer timer("write to file");
-//        uint64_t n = 0;
-//        uint8_t value = 0;
-//        for(auto c : bits)
-//        {
-//            value |= static_cast<uint8_t>(c == '1') << n;
-//            if(++n == 8)
-//            {
-//                output.append((char*) (&value), 1);
-//                n = 0;
-//                value = 0;
-//            }
-//        }
-//        if(n != 0)
-//        {
-//            while (8-n > 0){
-//                value |= static_cast<uint8_t>(0) << n;
-//                n++;
-//            }
-//            output.append((char*) (&value), 1);
-//        }
-//        outputFile << output;
-//        outputFile.close();
-//    }
-//}
 void writeToFile(const string& bits, const string& encodedFile, int numThreads){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
     vector<string> output(numThreads);
