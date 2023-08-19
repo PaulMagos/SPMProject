@@ -86,38 +86,8 @@ int main(int argc, char* argv[])
     }
 
 
-//    encode(encodedFile, inputFile);
+    encode(encodedFile, inputFile);
 
-    ifstream myFile ("test111.txt");
-    ifstream myFile2 ("test1112.txt");
-    string f1;
-    cout << "start 1" << endl;
-    while (myFile) {
-        f1.append(1, (char)myFile.get());
-    }
-    cout << "end 1" << endl;
-    cout << "start 2" << endl;
-    string f2;
-    while (myFile2) {
-        f2.append(1, (char)myFile2.get());
-    }
-    cout << "end 2" << endl;
-    for (int i = 0; i < f1.size(); ++i) {
-        if(i>=f2.size()){
-            cout << "ERROR LENGHT";
-        }
-        if(f1[i] != f2[i]){
-            cout << "ERROR" << f1[1] << " != " << f2[i] <<  " at " << i << endl;
-        }
-    }
-    for (int i = 0; i < f2.size(); ++i) {
-        if(i>=f1.size()){
-            cout << "ERROR LENGHT";
-        }
-        if(f1[i] != f2[i]){
-            cout << "ERROR" << f1[1] << " != " << f2[i] <<  " at " << i << endl;
-        }
-    }
     return 0;
 }
 

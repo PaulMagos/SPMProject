@@ -23,7 +23,7 @@ using namespace std;
 #define OPT_LIST "hi:p:t:"
 
 Node buildTree(vector<int> ascii);
-void writeToFile(const string& bits, const string& encodedFile);
+void writeToFile(const string& bits, const string& encodedFile, int numThreads);
 vector<int> readFrequencies(const string& inputFile, int numThreads);
 void createMap(Node root, map<int, string> *map, const string &prefix = "");
 string createOutput(const string& inputFile, map<int, string> myMap, int numThreads);
@@ -67,7 +67,7 @@ int main(int argc, char* argv[])
         }
         ifstream myFile2 (inputFile);
         string output = createOutput(inputFile, myMap, numThreads);
-        writeToFile(output, encodedFile);
+        writeToFile(output, encodedFile, numThreads);
     }
     return 0;
 }
@@ -186,32 +186,46 @@ string createOutput(const string& inputFile, map<int, string> myMap, int numThre
     }
 }
 
-void writeToFile(const string& bits, const string& encodedFile){
+void writeToFile(const string& bits, const string& encodedFile, int numThreads){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
-    string output;
+    vector<string> output(numThreads);
     {
         utimer timer("write to file");
-        uint8_t n = 0;
-        uint8_t value = 0;
-        for(auto c : bits)
-        {
-            value |= static_cast<uint8_t>(c == '1') << n;
-            if(++n == 8)
-            {
-                output.append((char*) (&value), 1);
-                n = 0;
-                value = 0;
+        vector<std::thread> threads;
+        threads.reserve(bits.size());
+        uintmax_t Start = (((bits.size() - (bits.size()%8))/8)/numThreads + 1)*8;
+        uintmax_t chunckSize = Start;
+        for(int i = 0; i<numThreads; i++){
+            if (i == numThreads-1){
+                chunckSize = bits.size() - (i*Start);
             }
+            threads.emplace_back([&bits, &output, Start, i, chunckSize, numThreads]{
+                            uint8_t n = 0;
+                            uint8_t value = 0;
+                            for(int j = 0; j<chunckSize; j++){
+                                value |= static_cast<uint8_t>(bits[i*Start+j] == '1') << n;
+                                if(++n == 8)
+                                {
+                                    output[i].append((char*) (&value), 1);
+                                    n = 0;
+                                    value = 0;
+                                }
+                            }
+                            if(n != 0 && i == numThreads-1)
+                            {
+                                while (8-n > 0){
+                                    value |= static_cast<uint8_t>(0) << n;
+                                    n++;
+                                }
+                                output[i].append((char*) (&value), 1);
+                            }
+                        });
         }
-        if(n != 0)
-        {
-            while (8-n > 0){
-                value |= static_cast<uint8_t>(0) << n;
-                n++;
-            }
-            output.append((char*) (&value), 1);
+        for (int i = 0; i < numThreads; i++) {
+            threads[i].join();
         }
-        outputFile << output;
+        for (int i = 0; i < numThreads; i++)
+            outputFile << output[i];
         outputFile.close();
     }
 }

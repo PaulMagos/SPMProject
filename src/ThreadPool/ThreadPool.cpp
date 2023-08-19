@@ -30,16 +30,17 @@ class ThreadPool
 void ThreadPool::Start(int numThreads) {
     int max =  (int)thread::hardware_concurrency();  // Max # of threads the system supports
     num_threads = (numThreads > max) ? max : numThreads;
+    thread_busy = vector<bool>(num_threads, false);
     for (uint32_t i = 0; i < num_threads; ++i) {
-        threads.emplace_back(&ThreadPool::ThreadLoop,this);
+        threads.emplace_back(&ThreadPool::ThreadLoop, this, i);
     }
 }
 
 void ThreadPool::ThreadLoop(uint32_t thread_id) {
     while (true) {
         std::function<void()> job;
+        thread_busy[thread_id] = false;
         {
-            thread_busy[thread_id] = false;
             std::unique_lock<std::mutex> lock(queue_mutex);
             if(debug) cout << "Thread " << this_thread::get_id() << " waiting for job" << endl;
             mutex_condition.wait(lock, [this] {
