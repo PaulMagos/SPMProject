@@ -71,9 +71,9 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-std::ifstream::pos_type filesize(const char* filename)
+ifstream::pos_type filesize(const char* filename)
 {
-    std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
+    ifstream in(filename, ifstream::ate | ifstream::binary);
     return in.tellg();
 }
 
@@ -92,7 +92,7 @@ vector<int> readFrequencies(const string& inputFile, int numThreads){
     {
         utimer timer("Calculate freq");
         vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
-        std::vector<std::future<std::vector<int>>> futures;
+        vector<future<vector<int>>> futures;
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
             myFile.seekg(i * size);
@@ -167,7 +167,7 @@ string createOutput(const string& inputFile, map<int, string> myMap, int numThre
     {
         utimer timer("create output");
         vector<string> bits(numThreads);
-        std::vector<std::future<string>> futures;
+        vector<future<string>> futures;
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
             myFile.seekg(i * size);
@@ -216,7 +216,7 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
     vector<string> output(numThreads);
     {
         utimer timer("write to file");
-        vector<std::thread> threads;
+        vector<thread> threads;
         uintmax_t Start = (((bits.size() - (bits.size()%8))/8)/numThreads + 1)*8;
         uintmax_t chunckSize = Start;
         for(int i = 0; i<numThreads; i++){
