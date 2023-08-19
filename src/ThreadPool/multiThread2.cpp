@@ -251,8 +251,9 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
             });
         }
         while (pool.busy());
-        for (int i = 0; i < numThreads; i++)
+        for (int i = 0; i < numThreads; i++){
             outputFile << output[i];
+        }
         outputFile.close();
     }
 }

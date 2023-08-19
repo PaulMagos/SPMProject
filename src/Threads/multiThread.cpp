@@ -87,7 +87,6 @@ vector<int> readFrequencies(const string& inputFile, int numThreads){
         utimer timer("Calculate freq");
         vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
         vector<std::thread> threads;
-        threads.reserve(numThreads);
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
             myFile.seekg(i * size);
@@ -160,30 +159,54 @@ string createOutput(const string& inputFile, map<int, string> myMap, int numThre
         utimer timer("create output");
         vector<string> bits(numThreads);
         vector<std::thread> threads;
-        threads.reserve(numThreads);
         // Read file line by line
-        for (int i = 0; i < numThreads; i++){
+        for (int i = 0; i < numThreads; i++) {
             myFile.seekg(i * size);
-            if (i == numThreads-1){
-                size = (len- (i*size));
+            if (i == numThreads - 1) {
+                size = (len - (i * size));
             }
             string line(size, '\0');
-            myFile.read( &line[0], size);
-            threads.emplace_back([&bits, line, &myMap, i]
-                     {
-                         for (char j : (string)line) {
-                             bits[i].append(myMap[j]);
-                         }
-                     });
+            myFile.read(&line[0], size);
+            threads.emplace_back([&bits, line, &myMap, i] {
+                for (char j: (string) line) {
+                    bits[i].append(myMap[j]);
+                }
+            });
         }
         string output;
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
         }
-        for (int i = 0; i < numThreads; i++)
+        for (int i = 0; i < numThreads; i++){
             output.append(bits[i]);
+            bits[i] = "";
+        }
         return output;
     }
+}
+
+string toAscii(const string& bits){
+    string output;
+    uint8_t n = 0;
+    uint8_t value = 0;
+    for(int j = 0; j<bits.size(); j++){
+        value |= static_cast<uint8_t>(bits[j] == '1') << n;
+        if(++n == 8)
+        {
+            output.append((char*) (&value), 1);
+            n = 0;
+            value = 0;
+        }
+    }
+    if(n != 0)
+    {
+        while (8-n > 0){
+            value |= static_cast<uint8_t>(0) << n;
+            n++;
+        }
+        output.append((char*) (&value), 1);
+    }
+    return output;
 }
 
 void writeToFile(const string& bits, const string& encodedFile, int numThreads){
@@ -192,40 +215,23 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
     {
         utimer timer("write to file");
         vector<std::thread> threads;
-        threads.reserve(bits.size());
-        uintmax_t Start = (((bits.size() - (bits.size()%8))/8)/numThreads + 1)*8;
+        uintmax_t Start = (((bits.size() - (bits.size() % 8)) / 8) / numThreads + 1) * 8;
         uintmax_t chunckSize = Start;
-        for(int i = 0; i<numThreads; i++){
-            if (i == numThreads-1){
-                chunckSize = bits.size() - (i*Start);
+        for (int i = 0; i < numThreads; i++) {
+            if (i == numThreads - 1) {
+                chunckSize = bits.size() - (i * Start);
             }
-            threads.emplace_back([&bits, &output, Start, i, chunckSize, numThreads]{
-                            uint8_t n = 0;
-                            uint8_t value = 0;
-                            for(int j = 0; j<chunckSize; j++){
-                                value |= static_cast<uint8_t>(bits[i*Start+j] == '1') << n;
-                                if(++n == 8)
-                                {
-                                    output[i].append((char*) (&value), 1);
-                                    n = 0;
-                                    value = 0;
-                                }
-                            }
-                            if(n != 0 && i == numThreads-1)
-                            {
-                                while (8-n > 0){
-                                    value |= static_cast<uint8_t>(0) << n;
-                                    n++;
-                                }
-                                output[i].append((char*) (&value), 1);
-                            }
-                        });
+            threads.emplace_back([i, &bits, &output, Start, chunckSize]() {
+                output[i] = toAscii(bits.substr(i * Start, chunckSize));
+            });
         }
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
         }
-        for (int i = 0; i < numThreads; i++)
+        for (int i = 0; i < numThreads; i++){
             outputFile << output[i];
+            output[i] = "";
+        }
         outputFile.close();
     }
 }

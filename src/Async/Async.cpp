@@ -1,4 +1,3 @@
-#include <sstream>
 #include <iostream>
 #include <utility>
 #include <vector>
@@ -218,33 +217,14 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
     {
         utimer timer("write to file");
         vector<std::thread> threads;
-        threads.reserve(bits.size());
         uintmax_t Start = (((bits.size() - (bits.size()%8))/8)/numThreads + 1)*8;
         uintmax_t chunckSize = Start;
         for(int i = 0; i<numThreads; i++){
             if (i == numThreads-1){
                 chunckSize = bits.size() - (i*Start);
             }
-            threads.emplace_back([&bits, &output, Start, i, chunckSize, numThreads]{
-                uint8_t n = 0;
-                uint8_t value = 0;
-                for(int j = 0; j<chunckSize; j++){
-                    value |= static_cast<uint8_t>(bits[i*Start+j] == '1') << n;
-                    if(++n == 8)
-                    {
-                        output[i].append((char*) (&value), 1);
-                        n = 0;
-                        value = 0;
-                    }
-                }
-                if(n != 0 && i == numThreads-1)
-                {
-                    while (8-n > 0){
-                        value |= static_cast<uint8_t>(0) << n;
-                        n++;
-                    }
-                    output[i].append((char*) (&value), 1);
-                }
+            threads.emplace_back([i, &bits, &output, Start, chunckSize](){
+                output[i] = toAscii(bits.substr(i*Start, chunckSize));
             });
         }
         for (int i = 0; i < numThreads; i++) {
