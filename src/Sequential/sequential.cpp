@@ -53,6 +53,8 @@ int main(int argc, char* argv[])
         }
     }
 
+
+    ff::ffTime(START_TIME);
     {
         utimer timer("Total");
         ifstream myFile (inputFile);

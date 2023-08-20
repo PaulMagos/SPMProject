@@ -1,17 +1,32 @@
-//
-// Created by p.magos on 8/19/23.
-//
 #include <cstddef>
 #include <string>
-#include <boost/interprocess/file_mapping.hpp>
-#include <boost/interprocess/mapped_region.hpp>
+#include <streambuf>
+#include <istream>
 
-namespace bip = boost::interprocess;
+template<typename CharT, typename TraitsT = std::char_traits<CharT>>
+struct basic_membuf : std::basic_streambuf<CharT, TraitsT> {
+    basic_membuf(CharT const* const buf, std::size_t const size) {
+        CharT* const p = const_cast<CharT*>(buf);
+        this->setg(p, p, p + size);
+    }
 
-int main(){
-    std::string filename = "./data/TestFiles/test1.txt";
-    bip::file_mapping mapping(filename.c_str(), bip::read_only);
-    bip::mapped_region mapped_rgn(mapping, bip::read_only);
-    char const* const mmaped_data = static_cast<char*>(mapped_rgn.get_address());
-    std::size_t const mmap_size = mapped_rgn.get_size();
-}
+    //...
+};
+
+template<typename CharT, typename TraitsT = std::char_traits<CharT>>
+struct basic_imemstream
+        : virtual basic_membuf<CharT, TraitsT>, std::basic_istream<CharT, TraitsT> {
+    basic_imemstream(const CharT *const buf1, const std::size_t size1, CharT const *const buf, std::size_t const size)
+            : basic_membuf(buf1, size1), basic_membuf(buf, size),
+              basic_istream(static_cast<std::basic_streambuf<CharT, TraitsT> *>(this))
+    { }
+    const CharT *const basic_membuf;
+    std::basic_streambuf <CharT, TraitsT> *basic_istream;
+
+};
+
+using imemstream = basic_imemstream<char>;
+
+char*  mmaped_data = nullptr;
+size_t mmap_size = 0;
+imemstream s(mmaped_data, mmap_size);
