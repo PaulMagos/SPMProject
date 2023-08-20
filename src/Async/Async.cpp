@@ -23,9 +23,9 @@ using namespace std;
 
 Node buildTree(vector<int> ascii);
 void writeToFile(const string& bits, const string& encodedFile, int numThreads);
-vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len);
-void createMap(Node root, map<int, string> *map, const string &prefix = "");
-string createOutput(ifstream* myFile, const map<int, string>& myMap, int numThreads, uintmax_t len);
+vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file);
+void createMap(Node root, vector<string> *map, const string &prefix = "");
+string createOutput(vector<string> file, const vector<string>& myMap, int numThreads, uintmax_t len);
 
 int main(int argc, char* argv[])
 {
@@ -58,17 +58,16 @@ int main(int argc, char* argv[])
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
 
-
+    vector<string> file(numThreads);
     {
         utimer timer("Total");
-        ascii = readFrequencies(&in, numThreads, fileSize);
-        map<int, string> myMap;
+        ascii = readFrequencies(&in, numThreads, fileSize, &file);
+        vector<string> mMap(ASCII_MAX);
         {
             utimer t("createMap");
-            createMap(buildTree(ascii), &myMap);
+            createMap(buildTree(ascii), &mMap);
         }
-//        ifstream myFile2 (inputFile);
-        string output = createOutput(&in, myMap, numThreads, fileSize);
+        string output = createOutput(file, mMap, numThreads, fileSize);
         writeToFile(output, encodedFile, numThreads);
     }
     return 0;
@@ -87,7 +86,7 @@ vector<int> calcChar(const string& line){
     return ascii;
 }
 
-vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len){
+vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file){
     // Read file
     uintmax_t size = len / numThreads;
     {
@@ -100,9 +99,9 @@ vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len){
             if (i == numThreads-1){
                 size = (len-(i*size));
             }
-            string line(size, ' ');
-            (*myFile).read( &line[0], size);
-            futures.emplace_back(async(launch::async, calcChar, line));
+            (*file)[i] = string(size, '\0');
+            (*myFile).read( &(*file)[i][0], size);
+            futures.emplace_back(async(launch::async, calcChar, (*file)[i]));
         }
         ascii[0] = futures[0].get();
         for (int i = 1; i < numThreads; i++) {
@@ -143,16 +142,16 @@ Node buildTree(vector<int> ascii)
         return *minHeap.top();
 }
 
-void createMap(Node root, map<int, string> *map, const string &prefix){
+void createMap(Node root, vector<string> *map, const string &prefix){
     if (root.getChar() != 256) {
-        (*map).insert(pair<int, string>(root.getChar(), prefix));
+        (*map)[root.getChar()] = prefix;
     } else {
         createMap(root.getLeftChild(), &(*map), prefix + "0");
         createMap(root.getRightChild(), &(*map), prefix + "1");
     }
 }
 
-string toBits(map<int, string> myMap, const string& line){
+string toBits(vector<string> myMap, const string& line){
     string bits;
     for (char j : line) {
         bits.append(myMap[j]);
@@ -160,27 +159,18 @@ string toBits(map<int, string> myMap, const string& line){
     return bits;
 }
 
-string createOutput(ifstream* myFile, const map<int, string>& myMap, int numThreads, uintmax_t len) {
+string createOutput(vector<string> file, const vector<string>& myMap, int numThreads, uintmax_t len) {
     // Read file
-    uintmax_t size = len / numThreads;
     {
         utimer timer("create output");
-        vector<string> bits(numThreads);
         vector<future<string>> futures;
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
-            (*myFile).seekg(i * size);
-            if (i == numThreads-1){
-                size = (len- (i*size));
-            }
-            string line(size, '\0');
-            (*myFile).read( &line[0], size);
-            futures.emplace_back(async(launch::async, toBits, myMap, line));
+            futures.emplace_back(async(launch::async, toBits, myMap, file[i]));
         }
         string output;
         for (int i = 0; i < numThreads; i++) {
-            bits[i] = futures[i].get();
-            output.append(bits[i]);
+            output.append(futures[i].get());
         }
         return output;
     }
@@ -190,8 +180,8 @@ string toAscii(const string& bits){
     string output;
     uint8_t n = 0;
     uint8_t value = 0;
-    for(int j = 0; j<bits.size(); j++){
-        value |= static_cast<uint8_t>(bits[j] == '1') << n;
+    for(char bit : bits){
+        value |= static_cast<uint8_t>(bit == '1') << n;
         if(++n == 8)
         {
             output.append((char*) (&value), 1);
