@@ -5,11 +5,9 @@
 #include "../utils/utimer.cpp"
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <utility>
 #include <vector>
 #include <mutex>
-#include <map>
 #include <getopt.h>
 
 
@@ -27,7 +25,7 @@ using namespace std;
 //using namespace ff;
 
 
-static inline vector<int> Func(const string& line) {
+vector<int> Func(const string& line) {
     vector<int> ascii(ASCII_MAX, 0);
     for (char c : line) {
         ascii[c]++;
@@ -62,7 +60,7 @@ vector<int> readFrequencies(ifstream &myFile){
     return ascii;
 }
 #else
-vector<int> readFrequencies(ifstream* myFile, uint fileSize, int numThreads, ff::ff_farm* farm){
+vector<int> readFrequencies(ifstream* myFile, uint fileSize, int numThreads, ff::ff_farm farm){
     // Read file
     uintmax_t size = fileSize / numThreads;
     {
@@ -70,7 +68,7 @@ vector<int> readFrequencies(ifstream* myFile, uint fileSize, int numThreads, ff:
         vector<int> ascii(ASCII_MAX, 0);
         // Read file line by line
         mutex m;
-        void **task = nullptr;
+        void * *task = nullptr;
         for (uint i = 0; i < numThreads; i++){
             (*myFile).seekg(i * size);
             if (i == numThreads-1){
@@ -78,8 +76,8 @@ vector<int> readFrequencies(ifstream* myFile, uint fileSize, int numThreads, ff:
             }
             string line(size, ' ');
             (*myFile).read( &line[0], size);
-            farm->offload(new ffFREQ_T(line));
-            if (farm->load_result_nb(task)){
+            farm.offload(new ffFREQ_T(line));
+            if (farm.load_result_nb(task)){
                 for (int j = 0; j < ASCII_MAX; j++){
                     {
                         lock_guard<mutex> lock(m);
@@ -130,16 +128,40 @@ int main(int argc, char* argv[])
 
 
     cout << "File size: " << fileSize << endl;
-    ffFREQ_T* r = NULL;
     ff::ff_Farm<ffFREQ_T> farm(WrapperFreq, numThreads, true);
     farm.run();
 
 
     {
         utimer timer("Total");
-        vector<int> ascii = readFrequencies(&in, fileSize, numThreads, &farm);
-        for (int i = 0; i < ASCII_MAX; ++i) {
-            cout << ascii[i] << endl;
+        uintmax_t size = fileSize / numThreads;
+        {
+            utimer timer("Calculate freq");
+            vector<int> ascii(ASCII_MAX, 0);
+            // Read file line by line
+            mutex m;
+            ffFREQ_T *task = nullptr;
+            for (uint i = 0; i < numThreads; i++){
+                (in).seekg(i * size);
+                if (i == numThreads-1){
+                    size = (fileSize- (i*size));
+                }
+                string line(size, ' ');
+                (in).read( &line[0], size);
+                farm.offload(new ffFREQ_T(line));
+                if (farm.load_result_nb(task)){
+                    for (int j = 0; j < ASCII_MAX; j++){
+                        {
+                            lock_guard<mutex> lock(m);
+                            ascii[j] += (task)->ascii[j];
+                        }
+                    }
+                    delete task;
+                }
+            }
+            for (int i = 0; i < ASCII_MAX; ++i) {
+                cout << ascii[i] << endl;
+            }
         }
 //        map<int, string> myMap;
 //        {
