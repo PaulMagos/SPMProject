@@ -23,9 +23,9 @@ using namespace std;
 
 Node buildTree(vector<int> ascii);
 void writeToFile(const string& bits, const string& encodedFile, int numThreads);
-vector<int> readFrequencies(const string& inputFile, int numThreads);
+vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len);
 void createMap(Node root, map<int, string> *map, const string &prefix = "");
-string createOutput(const string& inputFile, map<int, string> myMap, int numThreads);
+string createOutput(ifstream* myFile, const map<int, string>& myMap, int numThreads, uintmax_t len);
 
 int main(int argc, char* argv[])
 {
@@ -55,17 +55,20 @@ int main(int argc, char* argv[])
         }
     }
 
+    ifstream in(inputFile, ifstream::ate | ifstream::binary);
+    uintmax_t fileSize = in.tellg();
+
 
     {
         utimer timer("Total");
-        ascii = readFrequencies(inputFile, numThreads);
+        ascii = readFrequencies(&in, numThreads, fileSize);
         map<int, string> myMap;
         {
             utimer t("createMap");
             createMap(buildTree(ascii), &myMap);
         }
-        ifstream myFile2 (inputFile);
-        string output = createOutput(inputFile, myMap, numThreads);
+//        ifstream myFile2 (inputFile);
+        string output = createOutput(&in, myMap, numThreads, fileSize);
         writeToFile(output, encodedFile, numThreads);
     }
     return 0;
@@ -84,10 +87,8 @@ vector<int> calcChar(const string& line){
     return ascii;
 }
 
-vector<int> readFrequencies(const string& inputFile, int numThreads){
+vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len){
     // Read file
-    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
-    ifstream myFile (inputFile, ios::binary | ios::ate);
     uintmax_t size = len / numThreads;
     {
         utimer timer("Calculate freq");
@@ -95,12 +96,12 @@ vector<int> readFrequencies(const string& inputFile, int numThreads){
         vector<future<vector<int>>> futures;
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
-            myFile.seekg(i * size);
+            (*myFile).seekg(i * size);
             if (i == numThreads-1){
                 size = (len-(i*size));
             }
             string line(size, ' ');
-            myFile.read( &line[0], size);
+            (*myFile).read( &line[0], size);
             futures.emplace_back(async(launch::async, calcChar, line));
         }
         ascii[0] = futures[0].get();
@@ -159,10 +160,8 @@ string toBits(map<int, string> myMap, const string& line){
     return bits;
 }
 
-string createOutput(const string& inputFile, map<int, string> myMap, int numThreads) {
+string createOutput(ifstream* myFile, const map<int, string>& myMap, int numThreads, uintmax_t len) {
     // Read file
-    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
-    ifstream myFile (inputFile, ios::binary | ios::ate);
     uintmax_t size = len / numThreads;
     {
         utimer timer("create output");
@@ -170,12 +169,12 @@ string createOutput(const string& inputFile, map<int, string> myMap, int numThre
         vector<future<string>> futures;
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
-            myFile.seekg(i * size);
+            (*myFile).seekg(i * size);
             if (i == numThreads-1){
                 size = (len- (i*size));
             }
             string line(size, '\0');
-            myFile.read( &line[0], size);
+            (*myFile).read( &line[0], size);
             futures.emplace_back(async(launch::async, toBits, myMap, line));
         }
         string output;

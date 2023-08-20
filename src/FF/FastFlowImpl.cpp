@@ -25,7 +25,7 @@ using namespace std;
 //using namespace ff;
 
 
-vector<int> Func(const string& line) {
+static inline vector<int> Func(const string& line) {
     vector<int> ascii(ASCII_MAX, 0);
     for (char c : line) {
         ascii[c]++;
@@ -78,9 +78,9 @@ vector<int> readFrequencies(ifstream* myFile, uint fileSize, int numThreads, ff:
             (*myFile).read( &line[0], size);
             farm.offload(new ffFREQ_T(line));
             if (farm.load_result_nb(task)){
-                for (int j = 0; j < ASCII_MAX; j++){
-                    {
-                        lock_guard<mutex> lock(m);
+                {
+                    lock_guard<mutex> lock(m);
+                    for (int j = 0; j < ASCII_MAX; j++){
                         ascii[j] += ((ffFREQ_T*)task)->ascii[j];
                     }
                 }
@@ -127,10 +127,8 @@ int main(int argc, char* argv[])
     uintmax_t fileSize = in.tellg();
 
 
-    cout << "File size: " << fileSize << endl;
     ff::ff_Farm<ffFREQ_T> farm(WrapperFreq, numThreads, true);
     farm.run();
-
 
     {
         utimer timer("Total");
@@ -150,17 +148,14 @@ int main(int argc, char* argv[])
                 (in).read( &line[0], size);
                 farm.offload(new ffFREQ_T(line));
                 if (farm.load_result_nb(task)){
-                    for (int j = 0; j < ASCII_MAX; j++){
-                        {
-                            lock_guard<mutex> lock(m);
-                            ascii[j] += (task)->ascii[j];
+                    {
+                        lock_guard<mutex> lock(m);
+                        for (int j = 0; j < ASCII_MAX; j++){
+                            ascii[j] += ((ffFREQ_T*)task)->ascii[j];
                         }
                     }
                     delete task;
                 }
-            }
-            for (int i = 0; i < ASCII_MAX; ++i) {
-                cout << ascii[i] << endl;
             }
         }
 //        map<int, string> myMap;

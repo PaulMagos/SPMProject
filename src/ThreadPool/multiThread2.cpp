@@ -29,9 +29,11 @@ using namespace std;
 
 Node buildTree(vector<int> ascii);
 void writeToFile(const string& bits, const string& encodedFile, int numThreads);
-vector<int> readFrequencies(const string& inputFile, int numThreads);
+//vector<int> readFrequencies(const string& inputFile, int numThreads);
+vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len);
 void createMap(Node root, map<int, string> *map, const string &prefix = "");
-string createOutput(const string& inputFile, map<int, string> myMap, int numThreads);
+//string createOutput(const string& inputFile, map<int, string> myMap, int numThreads);
+string createOutput(ifstream* myFile, map<int, string> myMap, int numThreads, uintmax_t len);
 
 ThreadPool pool;
 
@@ -63,18 +65,20 @@ int main(int argc, char* argv[])
         }
     }
 
+    ifstream in(inputFile, ifstream::ate | ifstream::binary);
+    uintmax_t fileSize = in.tellg();
 
     {
         utimer timer("Total");
         pool.Start(numThreads);
-        ascii = readFrequencies(inputFile, numThreads);
+        ascii = readFrequencies(&in, numThreads, fileSize);
         map<int, string> myMap;
         {
             utimer t("createMap");
             createMap(buildTree(ascii), &myMap);
         }
-        ifstream myFile2 (inputFile);
-        string output = createOutput(inputFile, myMap, numThreads);
+//        ifstream myFile2 (inputFile);
+        string output = createOutput(&in, myMap, numThreads, fileSize);
         writeToFile(output, encodedFile, numThreads);
         pool.Stop();
     }
@@ -87,22 +91,22 @@ std::ifstream::pos_type filesize(const char* filename)
     return in.tellg();
 }
 
-vector<int> readFrequencies(const string& inputFile, int numThreads){
+vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len){
     // Read file
-    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
-    ifstream myFile (inputFile);
+//    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
+//    ifstream myFile (inputFile);
     uintmax_t size = len / numThreads;
     {
         utimer timer("Calculate freq");
         vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
-            myFile.seekg(i * size);
+            (*myFile).seekg(i * size);
             if (i == numThreads-1){
                 size = (len- (i*size));
             }
             string line(size, ' ');
-            myFile.read( &line[0], size);
+            (*myFile).read( &line[0], size);
             pool.QueueJob( [line, &ascii, i]
                          {
                              for (char j : line)
@@ -156,22 +160,22 @@ void createMap(Node root, map<int, string> *map, const string &prefix){
     }
 }
 
-string createOutput(const string& inputFile, map<int, string> myMap, int numThreads) {
+string createOutput(ifstream* myFile, map<int, string> myMap, int numThreads, uintmax_t len) {
     // Read file
-    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
-    ifstream myFile (inputFile);
+//    uintmax_t len = (uintmax_t) filesize(inputFile.c_str());
+//    ifstream myFile (inputFile);
     uintmax_t size = len / numThreads;
     vector<string> bits(numThreads);
     {
         utimer timer("create output");
         // Read file line by line
         for (int i = 0; i < numThreads; i++){
-            myFile.seekg(i * size);
+            (*myFile).seekg(i * size);
             if (i == numThreads-1){
                 size = (len- (i*size));
             }
             string line(size, ' ');
-            myFile.read( &line[0], size);
+            (*myFile).read( &line[0], size);
             pool.QueueJob( [&bits, line, &myMap, i]
                      {
                          for (char j : (string)line) {
