@@ -26,7 +26,7 @@ Node buildTree(vector<int> ascii);
 void writeToFile(const string& bits, const string& encodedFile, int numThreads);
 vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file);
 void createMap(Node root, map<int, string> *map, const string &prefix = "");
-string createOutput(vector<string>* myFile, map<int, string> myMap, int numThreads, uintmax_t len);
+string createOutput(vector<string>* myFile, map<int, string> myMap, int numThreads);
 
 int main(int argc, char* argv[])
 {
@@ -67,16 +67,16 @@ int main(int argc, char* argv[])
             utimer t("createMap");
             createMap(buildTree(ascii), &myMap);
         }
-        string output = createOutput(&file, myMap, numThreads, fileSize);
+        string output = createOutput(&file, myMap, numThreads);
         writeToFile(output, encodedFile, numThreads);
     }
     return 0;
 }
 
-void calcChar(ifstream* myFile, string* myString, int i, uintmax_t size, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* ascii, vector<int>* uAscii){
+void calcChar(ifstream* myFile, string* myString, int i, uintmax_t size, uintmax_t size1, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* ascii, vector<int>* uAscii){
     {
         unique_lock<mutex> lock(*readFileMutex);
-        (*myFile).seekg(i * size);
+        (*myFile).seekg(i * size1);
         (*myFile).read(&(*myString)[0], size);
     }
     for (char j : (*myString)) (*ascii)[j]++;
@@ -100,18 +100,20 @@ vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vec
         vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
         vector<int> uAscii(ASCII_MAX, 0);
         vector<std::thread> threads;
+        uintmax_t size1 = size;
         for (int i = 0; i < numThreads; i++){
-            size = (i==numThreads-1) ? len - (i*size) : size;
+            size = (i == numThreads - 1) ? len - (i * size1) : size1;
             (*file)[i] = string(size, ' ');
             threads.emplace_back([capture0 = &(*myFile),
                                          capture1 = &(*file)[i],
                                          i,
                                          size,
+                                         size1,
                                          capture2 = &readFileMutex,
                                          capture3= &ascii[i],
                                          capture4 = &writeAsciiMutex,
                                         capture5 = &uAscii] {
-                return calcChar(capture0, capture1, i, size, capture2, capture4, capture3, capture5); });
+                return calcChar(capture0, capture1, i, size, size1, capture2, capture4, capture3, capture5); });
         }
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
@@ -165,7 +167,7 @@ void toBits(map<int, string> myMap, string* line){
     *line = bits;
 }
 
-string createOutput(vector<string>* file, map<int, string> myMap, int numThreads, uintmax_t len) {
+string createOutput(vector<string>* file, map<int, string> myMap, int numThreads) {
     // Read file
     {
         utimer timer("create output");
@@ -183,6 +185,7 @@ string createOutput(vector<string>* file, map<int, string> myMap, int numThreads
         while (output.size()%8 != 0){
             output.append("0");
         }
+        cout << "Output size: " << output.size() << endl;
         return output;
     }
 }

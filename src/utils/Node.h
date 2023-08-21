@@ -24,9 +24,6 @@ class Node{
         int getChar() const{
             return this->c;
         }
-        void increaseValue(){
-            this->value++;
-        }
         Node getLeftChild() {
             return *this->left;
         }
