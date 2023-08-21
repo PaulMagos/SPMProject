@@ -186,6 +186,9 @@ string createOutput(vector<string>* file, map<int, string> myMap, int numThreads
         for (int i = 0; i < numThreads; i++){
             output.append((*file)[i]);
         }
+        while (output.size()%8 != 0){
+            output.append("0");
+        }
         return output;
     }
 }
@@ -199,12 +202,12 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
         uintmax_t chunkSize = Start;
         for (int i = 0; i < numThreads; i++) {
             chunkSize += (i==numThreads-1) ? bits.size() - ((i+1)*Start) : 0;
-            pool.QueueJob([&bits, Start, i, chunkSize, numThreads, &outputFile, &fileMutex]{
+            pool.QueueJob([&bits, start=i*Start, chunkSize, &outputFile, &fileMutex]{
                 string output;
                 uint8_t n = 0;
                 uint8_t value = 0;
                 for(int j = 0; j<chunkSize; j++){
-                    value |= static_cast<uint8_t>(bits[i*Start+j] == '1') << n;
+                    value = (bits[start+j] == '1') | value << 1;
                     if(++n == 8)
                     {
                         output.append((char*) (&value), 1);
@@ -212,17 +215,9 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
                         value = 0;
                     }
                 }
-                if(n != 0 && i == numThreads-1)
-                {
-                    while (8-n > 0){
-                        value |= static_cast<uint8_t>(0) << n;
-                        n++;
-                    }
-                    output.append((char*) (&value), 1);
-                }
                 {
                         unique_lock<mutex> lock(fileMutex);
-                        outputFile.seekp((i * Start)/8);
+                        outputFile.seekp(start/8);
                         outputFile.write(output.c_str(), output.size());
                 }
             });

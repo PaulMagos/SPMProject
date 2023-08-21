@@ -169,32 +169,11 @@ string createOutput(vector<string> file, const map<int, string>& myMap, int numT
         for (int i = 0; i < numThreads; i++) {
             output.append(futures[i].get());
         }
+        while (output.size()%8 != 0){
+            output.push_back('0');
+        }
         return output;
     }
-}
-
-string toAscii(const string& bits){
-    string output;
-    uint8_t n = 0;
-    uint8_t value = 0;
-    for(char bit : bits){
-        value |= static_cast<uint8_t>(bit == '1') << n;
-        if(++n == 8)
-        {
-            output.append((char*) (&value), 1);
-            n = 0;
-            value = 0;
-        }
-    }
-    if(n != 0)
-    {
-        while (8-n > 0){
-            value |= static_cast<uint8_t>(0) << n;
-            n++;
-        }
-        output.append((char*) (&value), 1);
-    }
-    return output;
 }
 
 void writeToFile(const string& bits, const string& encodedFile, int numThreads){
@@ -208,18 +187,28 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
         uintmax_t chunkSize = Start;
         for (int i = 0; i < numThreads; i++) {
             chunkSize += (i==numThreads-1) ? bits.size() - ((i+1)*Start) : 0;
-            threads.emplace_back([i, &bits, Start, chunkSize, &outputFile, &fileMutex]() {
-                const string value = toAscii(bits.substr(i * Start, chunkSize));
+            threads.emplace_back([&bits, start = i*Start, chunkSize, &outputFile, &fileMutex]{
+                string output;
+                uint8_t n = 0;
+                uint8_t value = 0;
+                for(int j = 0; j<chunkSize; j++){
+                    value = (bits[start+j] == '1') | value << 1;
+                    if(++n == 8)
+                    {
+                        output.append((char*) (&value), 1);
+                        n = 0;
+                        value = 0;
+                    }
+                }
                 {
                     unique_lock<mutex> lock(fileMutex);
-                    outputFile.seekp((i * Start)/8);
-                    outputFile.write(value.c_str(), value.size());
+                    outputFile.seekp(start/8);
+                    outputFile.write(output.c_str(), output.size());
                 }
             });
         }
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
         }
-        outputFile.close();
     }
 }

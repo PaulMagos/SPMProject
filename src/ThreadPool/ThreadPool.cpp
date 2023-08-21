@@ -39,8 +39,8 @@ void ThreadPool::Start(int numThreads) {
 void ThreadPool::ThreadLoop(uint32_t thread_id) {
     while (true) {
         std::function<void()> job;
-        thread_busy[thread_id] = false;
         {
+            thread_busy[thread_id] = false;
             std::unique_lock<std::mutex> lock(queue_mutex);
             if(debug) cout << "Thread " << this_thread::get_id() << " waiting for job" << endl;
             mutex_condition.wait(lock, [this] {
@@ -52,8 +52,8 @@ void ThreadPool::ThreadLoop(uint32_t thread_id) {
             if(debug) cout << "Thread " << this_thread::get_id() << " found job" << endl;
             job = jobs.front();
             jobs.pop();
+            thread_busy[thread_id] = true;
         }
-        thread_busy[thread_id] = true;
         if(debug) cout << "Thread " << this_thread::get_id() << " executing job" << endl;
         job();
     }
@@ -80,8 +80,6 @@ void ThreadPool::Stop() {
 
 bool ThreadPool::busy() {
     std::lock_guard<std::mutex> lock(queue_mutex);
-    for (int i = 0; i < num_threads; i++) {
-        if (thread_busy[i]) return true;
-    }
+    for (int i = 0; i < num_threads; i++) if (thread_busy[i]) return true;
     return !jobs.empty();
 }

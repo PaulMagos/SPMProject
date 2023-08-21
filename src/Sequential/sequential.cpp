@@ -24,6 +24,7 @@ using namespace std;
 Node buildTree(vector<int> ascii);
 void readFrequencies(vector<int>* ascii, ifstream &myFile);
 void writeToFile(const string& bits, const string& encodedFile);
+void write_to_file_Matteo(const string& bits, const string& encodedFile);
 void createMap(Node root, map<int, string> *map, const string &prefix = "");
 string createOutput(const string& inputFile, map<int, string> myMap);
 
@@ -54,18 +55,32 @@ int main(int argc, char* argv[])
     }
 
 
+    map<int, string> myMap;
+    ifstream myFile (inputFile);
+    string output;
     {
-        utimer timer("Total");
-        ifstream myFile (inputFile);
-        readFrequencies(&ascii, myFile);
-        map<int, string> myMap;
+        utimer total("Total");
         {
-            utimer t("createMap");
+            utimer t("Calculate freq");
+            readFrequencies(&ascii, myFile);
+        }
+        {
+            utimer t("CreateMap");
             createMap(buildTree(ascii), &myMap);
         }
-        ifstream myFile2 (inputFile);
-        string output = createOutput(inputFile, myMap);
-        writeToFile(output, encodedFile);
+        {
+            utimer timer("Create output");
+            output = createOutput(inputFile, myMap);
+        }
+        {
+            utimer timer("Write to file");
+            writeToFile(output, encodedFile);
+        }
+
+        {
+            utimer timer("Write to file Matteo");
+            write_to_file_Matteo(output,  encodedFile.insert(encodedFile.size()-4, "Matteo_"));
+        }
     }
     return 0;
 }
@@ -73,12 +88,9 @@ int main(int argc, char* argv[])
 void readFrequencies(vector<int>* ascii, ifstream &myFile){
     // Read file
     string str;
-    {
-        utimer timer("Calculate freq");
-        while(myFile){
-            char c = myFile.get();
-            (*ascii)[c]++;
-        }
+    while(myFile){
+        char c = myFile.get();
+        (*ascii)[c]++;
     }
 }
 
@@ -122,43 +134,41 @@ void createMap(Node root, map<int, string> *map, const string &prefix){
 string createOutput(const string& inputFile, map<int, string> myMap) {
     string str;
     ifstream myFile (inputFile);
-    {
-        utimer timer("Create output");
-        string output;
-        while(myFile){
-            char c = myFile.get();
-            output.append(myMap[c]);
-        }
-        return output;
+    string output;
+    while(myFile){
+        char c = myFile.get();
+        output.append(myMap[c]);
     }
+    while (output.size() % 8 != 0) {
+        output.push_back('0');
+    }
+    return output;
 }
 
 void writeToFile(const string& bits, const string& encodedFile){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
+    uint8_t value = 0;
+    uint8_t n = 0;
+    for(char bit : bits){
+        value = (bit == '1') | value << 1;
+        if(++n == 8)
+        {
+            outputFile.write((char*) (&value), 1);
+            n = 0;
+            value = 0;
+        }
+    }
+}
+
+void write_to_file_Matteo(const string& bits, const string& encodedFile){
+    ofstream outputFile1(encodedFile, ios::binary | ios::out);
     string output;
-    {
-        utimer timer("write to file");
-        uint8_t n = 0;
-        uint8_t value = 0;
-        for(auto c : bits)
-        {
-            value |= static_cast<uint8_t>(c == '1') << n;
-            if(++n == 8)
-            {
-                output.append((char*) (&value), 1);
-                n = 0;
-                value = 0;
-            }
+    char byte;
+    for (long long unsigned i = 0; i < bits.size(); i += 8) {
+        for (int j = 0; j < 8; j++) {
+            byte = (bits[i + j] == '1') | byte << 1;
         }
-        if(n != 0)
-        {
-            while (8-n > 0){
-                value |= static_cast<uint8_t>(0) << n;
-                n++;
-            }
-            output.append((char*) (&value), 1);
-        }
-        outputFile << output;
-        outputFile.close();
+        outputFile1.write((char*) (&byte), 1);
+        byte = 0;
     }
 }
