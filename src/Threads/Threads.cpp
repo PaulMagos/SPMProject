@@ -6,6 +6,7 @@
 #include <thread>
 #include <map>
 #include <queue>
+#include <mutex>
 #include "../utils/Node.h"
 #include "../utils/utimer.cpp"
 
@@ -72,15 +73,6 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-//void calcChar(ifstream* myFile, string* myString, int i, uintmax_t size, mutex* readFileMutex, vector<int>* ascii){
-//    {
-//        unique_lock<mutex> lock(*readFileMutex);
-//        (*myFile).seekg(i * size);
-//        (*myFile).read(&(*myString)[0], size);
-//    }
-//    for (char j : (*myString)) (*ascii)[j]++;
-//}
-
 void calcChar(ifstream* myFile, string* myString, int i, uintmax_t size, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* ascii, vector<int>* uAscii){
     {
         unique_lock<mutex> lock(*readFileMutex);
@@ -108,18 +100,6 @@ vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vec
         vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
         vector<int> uAscii(ASCII_MAX, 0);
         vector<std::thread> threads;
-        // Read file line by line
-//        for (int i = 0; i < numThreads; i++){
-//            size = (i==numThreads-1) ? len - (i*size) : size;
-//            (*file)[i] = string(size, ' ');
-//            threads.emplace_back([capture0 = &(*myFile),
-//                                  capture1 = &(*file)[i],
-//                                  i,
-//                                  size,
-//                                  capture2 = &readFileMutex,
-//                                  capture3= &ascii[i]] {
-//                return calcChar(capture0, capture1, i, size, capture2, capture3); });
-//        }
         for (int i = 0; i < numThreads; i++){
             size = (i==numThreads-1) ? len - (i*size) : size;
             (*file)[i] = string(size, ' ');
@@ -136,12 +116,6 @@ vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vec
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
         }
-//        for (int i = 1; i < numThreads; i++) {
-//            for (int j = 0; j < ASCII_MAX; j++) {
-//                ascii[0][j] += ascii[i][j];
-//            }
-//        }
-//        return ascii[0];
         return uAscii;
     }
 }
@@ -224,7 +198,7 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
         uintmax_t chunkSize = Start;
         for (int i = 0; i < numThreads; i++) {
             chunkSize += (i==numThreads-1) ? bits.size() - ((i+1)*Start) : 0;
-            threads.emplace_back([&bits, start = i*Start, chunkSize, &outputFile, &fileMutex]{
+            threads.emplace_back([&bits, start=i*Start, chunkSize, &outputFile, &fileMutex]() {
                 string output;
                 uint8_t n = 0;
                 uint8_t value = 0;
@@ -247,5 +221,6 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
         }
+        outputFile.close();
     }
 }

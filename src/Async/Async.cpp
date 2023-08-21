@@ -170,7 +170,7 @@ string createOutput(vector<string> file, const map<int, string>& myMap, int numT
             output.append(futures[i].get());
         }
         while (output.size()%8 != 0){
-            output.push_back('0');
+            output.append("0");
         }
         return output;
     }
@@ -187,7 +187,7 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
         uintmax_t chunkSize = Start;
         for (int i = 0; i < numThreads; i++) {
             chunkSize += (i==numThreads-1) ? bits.size() - ((i+1)*Start) : 0;
-            threads.emplace_back([&bits, start = i*Start, chunkSize, &outputFile, &fileMutex]{
+            threads.emplace_back([&bits, start=i*Start, chunkSize, &outputFile, &fileMutex]() {
                 string output;
                 uint8_t n = 0;
                 uint8_t value = 0;
@@ -210,5 +210,6 @@ void writeToFile(const string& bits, const string& encodedFile, int numThreads){
         for (int i = 0; i < numThreads; i++) {
             threads[i].join();
         }
+//        outputFile.close();
     }
 }
