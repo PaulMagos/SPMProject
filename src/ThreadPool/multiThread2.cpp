@@ -30,7 +30,7 @@ using namespace std;
  */
 #define OPT_LIST "hi:p:t:"
 
-void writeToFile(const string& bits, const string& encodedFile, int numThreads);
+void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads);
 vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file);
 void createOutput(vector<string>* myFile, const map<int, string>& myMap, int numThreads, uintmax_t len);
 
@@ -70,8 +70,6 @@ int main(int argc, char* argv[])
 
     vector<string> file(numThreads);
     map<int, string> myMap;
-    vector<string> output;
-    string bits;
     {
         utimer timer("Total");
         {
@@ -91,13 +89,8 @@ int main(int argc, char* argv[])
             createOutput(&file, myMap, numThreads, fileSize);
         }
         {
-            utimer t("Concatenate");
-            for (const auto &piece : file) bits += piece;
-            bits += string(8 - bits.size() % 8, '0');
-        }
-        {
             utimer t("Write to File");
-            writeToFile(bits, encodedFile, numThreads);
+            writeToFile(&file, encodedFile, numThreads);
         }
         {
             utimer t("Pool Stop");
@@ -165,28 +158,50 @@ void createOutput(vector<string>* file, const map<int, string>& myMap, int numTh
     while (pool.busy());
 }
 
-void writeToFile(const string& bits, const string& encodedFile, int numThreads){
+void wWrite(uint8_t Start, uint8_t End, vector<string>* bits, int pos, uintmax_t writePos, ofstream& outputFile, mutex& fileMutex){
+    string output;
+    uint8_t value = 0;
+    int i;
+    for (i = Start; i < (*bits)[pos].size(); i+=8) {
+        for (uint8_t n = 0; n < 8; n++)
+            value = ((*bits)[pos][i+n]=='1') | value << 1;
+//            value |= ((*bits)[pos][i+n]=='1') << n;
+        output.append((char*) (&value), 1);
+        value = 0;
+    }
+    if (pos != (*bits).size()-1) {
+        for (uint8_t n = 0; n < 8-End; n++)
+            value = ((*bits)[pos][i-8+n]=='1') | value << 1;
+//            value |= ((*bits)[pos][i-8+n]=='1') << n;
+        for (i = 0; i < End; i++)
+            value = ((*bits)[pos+1][i]=='1') | value << 1;
+//            value |= ((*bits)[pos+1][i]=='1') << i;
+        output.append((char*) (&value), 1);
+    }
+    {
+        unique_lock<mutex> lock(fileMutex);
+        outputFile.seekp(writePos/8);
+        outputFile.write(output.c_str(), output.size());
+    }
+}
+
+void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
+    vector<string> output(numThreads);
     mutex fileMutex;
-    uintmax_t Start = ((bits.size() - (bits.size() % 8)) / numThreads + 1);
-    uintmax_t chunkSize = Start;
+    uintmax_t writePos = 0;
+    uint8_t Start, End = 0;
+    string line;
     for (int i = 0; i < numThreads; i++) {
-        chunkSize += (i==(numThreads)-1) * (bits.size() - ((i+1)*Start));
-        pool.QueueJob([&bits, start=i*Start, chunkSize, &outputFile, &fileMutex]{
-            string output;
-            uint8_t value = 0;
-            for(int j = 0; j<chunkSize; j+=8){
-                for (uint8_t n = 0; n < 8; n++)
-                    value = (bits[start+j+n] == '1') | value << 1;
-                output += value;
-                value = 0;
-            }
-            {
-                unique_lock<mutex> lock(fileMutex);
-                outputFile.seekp(start/8);
-                outputFile.write(output.c_str(), output.size());
-            }
+        Start = End;
+        End = 8 - ((*bits)[i].size()-Start)%8;
+        if (i == numThreads-1)
+            (*bits)[i] += (string(((*bits)[i].size()-Start)%8, '0'));
+//        threads.emplace_back(wWrite, Start, End, &(*bits), i, writePos, ref(outputFile), ref(fileMutex));
+        pool.QueueJob([Start, End, capture0 = &(*bits), i, &writePos, capture1 = &outputFile, capture2 = &fileMutex]{
+            wWrite(Start, End, capture0, i, writePos, ref(*capture1), ref(*capture2));
         });
+        writePos += (((*bits)[i].size()-Start)+End);
     }
     while (pool.busy());
 }
