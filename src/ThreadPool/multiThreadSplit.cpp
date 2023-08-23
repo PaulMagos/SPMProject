@@ -1,14 +1,17 @@
+//
+// Created by p.magos on 8/17/23.
+//
+
 #include <iostream>
 #include <vector>
 #include <getopt.h>
 #include <fstream>
-#include <thread>
-#include <mutex>
-#include <future>
 #include <map>
+#include <mutex>
 #include "../utils/Node.h"
 #include "../utils/utimer.cpp"
 #include "../utils/utils.cpp"
+#include "./ThreadPool.cpp"
 
 using namespace std;
 
@@ -23,8 +26,9 @@ using namespace std;
 
 void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads);
 void readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file, vector<int>* uAscii);
-void createOutput(vector<string>* file, const map<int, string>& myMap, int numThreads);
-vector<future<void>> futures;
+void createOutput(vector<string>* myFile, const map<int, string>& myMap, int numThreads, uintmax_t len);
+
+ThreadPool pool;
 
 int main(int argc, char* argv[])
 {
@@ -35,7 +39,7 @@ int main(int argc, char* argv[])
     int numThreads = 4;
 
     inputFile = "./data/TestFiles/";
-    encodedFile = "./data/EncodedFiles/Async/";
+    encodedFile = "./data/EncodedFiles/ThreadPoolSplit/";
 
     while((option = (char)getopt(argc, argv, OPT_LIST)) != -1){
         switch (option) {
@@ -57,10 +61,15 @@ int main(int argc, char* argv[])
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
 
-    vector<string> file(numThreads);
+    vector<string> file(numThreads*2);
     map<int, string> myMap;
     {
         utimer timer("Total");
+        {
+            utimer t("Pool Start");
+            pool.Start(numThreads);
+            numThreads = numThreads*2;
+        }
         {
             utimer t("Read Frequencies");
             readFrequencies(&in, numThreads, fileSize, &file, &ascii);
@@ -71,11 +80,15 @@ int main(int argc, char* argv[])
         }
         {
             utimer t("Create Output");
-            createOutput(&file, myMap, numThreads);
+            createOutput(&file, myMap, numThreads, fileSize);
         }
         {
-            utimer t("Write To File");
+            utimer t("Write to File");
             writeToFile(&file, encodedFile, numThreads);
+        }
+        {
+            utimer t("Pool Stop");
+            pool.Stop();
         }
     }
     return 0;
@@ -84,31 +97,35 @@ int main(int argc, char* argv[])
 void readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file, vector<int>* uAscii){
     // Read file
     uintmax_t size1 = len / numThreads;
+    uintmax_t size = size1;
     mutex readFileMutex;
     mutex writeAsciiMutex;
     // Read file line by line
     for (int i = 0; i < numThreads; i++){
-        uintmax_t size = (i==numThreads-1) ? len - (i*size1) : size1;
+        size = (i==numThreads-1) ? len - (i*size) : size;
         (*file)[i] = string(size, ' ');
-        futures.emplace_back(async(launch::async, calcChar, &(*myFile), &(*file)[i], i, size, size1, &readFileMutex, &writeAsciiMutex, &(*uAscii)));
+        pool.QueueJob([capture0 = &(*myFile),
+                              capture1 = &(*file)[i],
+                              i,
+                              size,
+                              size1,
+                              capture2 = &readFileMutex,
+                              capture4 = &writeAsciiMutex,
+                              capture5 = &(*uAscii)] { calcChar(capture0, capture1, i, size, size1, capture2, capture4, capture5); });
     }
-    for (int i = 0; i < numThreads; i++) futures[i].get();
+    while (pool.busy());
 }
 
-void createOutput(vector<string>* file, const map<int, string>& myMap, int numThreads) {
-    // Read file
-    futures = vector<future<void>>();
-    for (int i = 0; i < numThreads; i++){
-        futures.emplace_back(async(launch::async, toBits, myMap, &(*file)[i]));
-    }
-    for (int i = 0; i < numThreads; i++) futures[i].get();
+void createOutput(vector<string>* file, const map<int, string>& myMap, int numThreads, uintmax_t len) {
+    for (int i = 0; i < numThreads; i++)
+        pool.QueueJob([myMap, capture0 = &(*file)[i]] { toBits(myMap, capture0); });
+    while (pool.busy());
 }
 
 void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
     vector<string> output(numThreads);
     mutex fileMutex;
-    vector<std::thread> threads;
     uintmax_t writePos = 0;
     uint8_t Start, End = 0;
     string line;
@@ -117,10 +134,10 @@ void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads
         End = 8 - ((*bits)[i].size()-Start)%8;
         if (i == numThreads-1)
             (*bits)[i] += (string(((*bits)[i].size()-Start)%8, '0'));
-        threads.emplace_back(wWrite, Start, End, &(*bits), i, writePos, ref(outputFile), ref(fileMutex));
+        pool.QueueJob([Start, End, capture0 = &(*bits), i, writePos, capture1 = &outputFile, capture2 = &fileMutex]{
+            wWrite(Start, End, capture0, i, writePos, ref(*capture1), ref(*capture2));
+        });
         writePos += (((*bits)[i].size()-Start)+End);
     }
-    for (int i = 0; i < numThreads; i++) {
-        threads[i].join();
-    }
+    while (pool.busy());
 }

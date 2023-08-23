@@ -14,10 +14,10 @@
 #include "../utils/Node.h"
 #include "../utils/utimer.cpp"
 #include "./ThreadPool.cpp"
+#include "../utils/utils.cpp"
 
 using namespace std;
 
-#define ASCII_MAX 256
 // OPT LIST
 /*
  * h HELP
@@ -96,84 +96,32 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void calcChar(ifstream* myFile, string* myString, int i, uintmax_t size, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* uAscii){
-    vector<int> ascii(ASCII_MAX, 0);
-    {
-        unique_lock<mutex> lock(*readFileMutex);
-        (*myFile).seekg(i * size);
-        (*myFile).read(&(*myString)[0], size);
-    }
-    for (char j : (*myString)) (ascii)[j]++;
-    {
-        unique_lock<mutex> lock(*writeAsciiMutex);
-        for (int j = 0; j < ASCII_MAX; j++) {
-            if ((ascii)[j] != 0) {
-                (*uAscii)[j] += (ascii)[j];
-            }
-        }
-    }
-}
-
 void readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file, vector<int>* uAscii){
     // Read file
-    uintmax_t size = len / numThreads;
+    uintmax_t size1 = len / numThreads;
+    uintmax_t size = size1;
     mutex readFileMutex;
     mutex writeAsciiMutex;
     // Read file line by line
     for (int i = 0; i < numThreads; i++){
-        size = (i==numThreads-1) ? len - (i*size) : size;
+        size = (i==numThreads-1) ? len - (i*size1) : size1;
         (*file)[i] = string(size, ' ');
         pool.QueueJob([capture0 = &(*myFile),
                               capture1 = &(*file)[i],
                               i,
                               size,
+                              size1,
                               capture2 = &readFileMutex,
                               capture4 = &writeAsciiMutex,
-                              capture5 = &(*uAscii)] {
-            return calcChar(capture0, capture1, i, size, capture2, capture4, capture5); });
+                              capture5 = &(*uAscii)] { calcChar(capture0, capture1, i, size, size1, capture2, capture4, capture5); });
     }
     while (pool.busy());
-}
-
-void toBits(map<int, string> myMap, string* line){
-    string bits;
-    for (char j : *line) {
-        bits.append(myMap[j]);
-    }
-    *line = bits;
 }
 
 void createOutput(vector<string>* file, const map<int, string>& myMap, int numThreads, uintmax_t len) {
     for (int i = 0; i < numThreads; i++)
-        pool.QueueJob([myMap, capture0 = &(*file)[i]] { return toBits(myMap, capture0); });
+        pool.QueueJob([myMap, capture0 = &(*file)[i]] { toBits(myMap, capture0); });
     while (pool.busy());
-}
-
-void wWrite(uint8_t Start, uint8_t End, vector<string>* bits, int pos, uintmax_t writePos, ofstream& outputFile, mutex& fileMutex){
-    string output;
-    uint8_t value = 0;
-    int i;
-    for (i = Start; i < (*bits)[pos].size(); i+=8) {
-        for (uint8_t n = 0; n < 8; n++)
-            value = ((*bits)[pos][i+n]=='1') | value << 1;
-//            value |= ((*bits)[pos][i+n]=='1') << n;
-        output.append((char*) (&value), 1);
-        value = 0;
-    }
-    if (pos != (*bits).size()-1) {
-        for (uint8_t n = 0; n < 8-End; n++)
-            value = ((*bits)[pos][i-8+n]=='1') | value << 1;
-//            value |= ((*bits)[pos][i-8+n]=='1') << n;
-        for (i = 0; i < End; i++)
-            value = ((*bits)[pos+1][i]=='1') | value << 1;
-//            value |= ((*bits)[pos+1][i]=='1') << i;
-        output.append((char*) (&value), 1);
-    }
-    {
-        unique_lock<mutex> lock(fileMutex);
-        outputFile.seekp(writePos/8);
-        outputFile.write(output.c_str(), output.size());
-    }
 }
 
 void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads){
@@ -188,8 +136,7 @@ void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads
         End = 8 - ((*bits)[i].size()-Start)%8;
         if (i == numThreads-1)
             (*bits)[i] += (string(((*bits)[i].size()-Start)%8, '0'));
-//        threads.emplace_back(wWrite, Start, End, &(*bits), i, writePos, ref(outputFile), ref(fileMutex));
-        pool.QueueJob([Start, End, capture0 = &(*bits), i, &writePos, capture1 = &outputFile, capture2 = &fileMutex]{
+        pool.QueueJob([Start, End, capture0 = &(*bits), i, writePos, capture1 = &outputFile, capture2 = &fileMutex]{
             wWrite(Start, End, capture0, i, writePos, ref(*capture1), ref(*capture2));
         });
         writePos += (((*bits)[i].size()-Start)+End);
