@@ -21,9 +21,9 @@ using namespace std;
  */
 #define OPT_LIST "hi:p:"
 
-void readFrequencies(vector<int>* ascii, ifstream &myFile);
+void readFrequencies(vector<int>* ascii, ifstream &myFile, string* file);
 void writeToFile(const string& bits, const string& encodedFile);
-void createOutput(const string& inputFile, map<int, string> myMap, string* encodedFile);
+void createOutput(string* file, map<int, string> myMap);
 
 int main(int argc, char* argv[])
 {
@@ -52,12 +52,12 @@ int main(int argc, char* argv[])
 
     map<int, string> myMap;
     ifstream myFile (inputFile);
-    string output;
+    string file;
     {
         utimer total("Total");
         {
             utimer t("Calculate freq");
-            readFrequencies(&ascii, myFile);
+            readFrequencies(&ascii, myFile, &file);
         }
         {
             utimer t("CreateMap");
@@ -65,31 +65,32 @@ int main(int argc, char* argv[])
         }
         {
             utimer timer("Create output");
-            createOutput(inputFile, myMap, &output);
+            createOutput(&file, myMap);
         }
         {
             utimer timer("Write to file");
-            writeToFile(output, encodedFile);
+            writeToFile(file, encodedFile);
         }
     }
     return 0;
 }
 
-void readFrequencies(vector<int>* ascii, ifstream &myFile){
+void readFrequencies(vector<int>* ascii, ifstream &myFile, string* file){
     // Read file
     while(myFile){
         char c = myFile.get();
         (*ascii)[c]++;
+        (*file).push_back(c);
     }
 }
 
-void createOutput(const string& inputFile, map<int, string> myMap, string* encodedFile) {
-    ifstream myFile (inputFile);
-    while(myFile){
-        char c = myFile.get();
-        (*encodedFile).append(myMap[c]);
+void createOutput(string* inputFile, map<int, string> myMap) {
+    string tmp;
+    for (auto &i : *inputFile) {
+        (tmp).append(myMap[i]);
     }
-    (*encodedFile).append(string(8 - (*encodedFile).size() % 8, '0'));
+    (tmp).append(string(8 - (tmp).size() % 8, '0'));
+    swap(tmp, *inputFile);
 }
 
 void writeToFile(const string& bits, const string& encodedFile){
