@@ -27,11 +27,9 @@ using namespace std;
  */
 #define OPT_LIST "hi:p:t:"
 
-Node buildTree(vector<int> ascii);
 void writeToFile(const string& bits, const string& encodedFile, int numThreads);
 vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file);
-void createMap(Node root, map<int, string> *map, const string &prefix = "");
-string createOutput(vector<string>* myFile, map<int, string> myMap, int numThreads, uintmax_t len);
+string createOutput(vector<string>* myFile, const map<int, string>& myMap, int numThreads, uintmax_t len);
 
 ThreadPool pool;
 
@@ -67,18 +65,34 @@ int main(int argc, char* argv[])
     uintmax_t fileSize = in.tellg();
 
     vector<string> file(numThreads);
+    map<int, string> myMap;
+    string output;
     {
         utimer timer("Total");
-        pool.Start(numThreads);
-        ascii = readFrequencies(&in, numThreads, fileSize, &file);
-        map<int, string> myMap;
         {
-            utimer t("createMap");
-            createMap(buildTree(ascii), &myMap);
+            utimer t("Pool Start");
+            pool.Start(numThreads);
         }
-        string output = createOutput(&file, myMap, numThreads, fileSize);
-        writeToFile(output, encodedFile, numThreads);
-        pool.Stop();
+        {
+            utimer t("Read Frequencies");
+            ascii = readFrequencies(&in, numThreads, fileSize, &file);
+        }
+        {
+            utimer t("Create Map");
+            Node::createMap(Node::buildTree(ascii), &myMap);
+        }
+        {
+            utimer t("Create Output");
+            output = createOutput(&file, myMap, numThreads, fileSize);
+        }
+        {
+            utimer t("Write to File");
+            writeToFile(output, encodedFile, numThreads);
+        }
+        {
+            utimer t("Pool Stop");
+            pool.Stop();
+        }
     }
     return 0;
 }
@@ -105,64 +119,24 @@ vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vec
     uintmax_t size = len / numThreads;
     mutex readFileMutex;
     mutex writeAsciiMutex;
-    {
-        utimer timer("Calculate freq");
-        vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
-        vector<int> uAscii(ASCII_MAX, 0);
-        // Read file line by line
-        for (int i = 0; i < numThreads; i++){
-            size = (i==numThreads-1) ? len - (i*size) : size;
-            (*file)[i] = string(size, ' ');
-            pool.QueueJob([capture0 = &(*myFile),
-                                  capture1 = &(*file)[i],
-                                  i,
-                                  size,
-                                  capture2 = &readFileMutex,
-                                  capture4 = &writeAsciiMutex,
-                                  capture5 = &uAscii,
-                                  capture3= &ascii[i]] {
-                return calcChar(capture0, capture1, i, size, capture2, capture4, capture3, capture5); });
-        }
-        while (pool.busy());
-        return uAscii;
+    vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
+    vector<int> uAscii(ASCII_MAX, 0);
+    // Read file line by line
+    for (int i = 0; i < numThreads; i++){
+        size = (i==numThreads-1) ? len - (i*size) : size;
+        (*file)[i] = string(size, ' ');
+        pool.QueueJob([capture0 = &(*myFile),
+                              capture1 = &(*file)[i],
+                              i,
+                              size,
+                              capture2 = &readFileMutex,
+                              capture4 = &writeAsciiMutex,
+                              capture5 = &uAscii,
+                              capture3= &ascii[i]] {
+            return calcChar(capture0, capture1, i, size, capture2, capture4, capture3, capture5); });
     }
-}
-
-// Method for building the tree
-Node buildTree(vector<int> ascii)
-{
-        Node *lChild, *rChild, *top;
-        // Min Heap
-        priority_queue<Node *, vector<Node *>, Node::cmp> minHeap;
-        for (int i = 0; i < ASCII_MAX; i++) {
-            if (ascii[i] != 0) {
-                minHeap.push(new Node(ascii[i], i));
-            }
-        }
-        while (minHeap.size() != 1) {
-            lChild = minHeap.top();
-            minHeap.pop();
-
-            rChild = minHeap.top();
-            minHeap.pop();
-
-            top = new Node(lChild->getValue() + rChild->getValue(), 256);
-
-            top->setLeftChild(lChild);
-            top->setRightChild(rChild);
-
-            minHeap.push(top);
-        }
-        return *minHeap.top();
-}
-
-void createMap(Node root, map<int, string> *map, const string &prefix){
-    if (root.getChar() != 256) {
-        (*map).insert(pair<int, string>(root.getChar(), prefix));
-    } else {
-        createMap(root.getLeftChild(), &(*map), prefix + "0");
-        createMap(root.getRightChild(), &(*map), prefix + "1");
-    }
+    while (pool.busy());
+    return uAscii;
 }
 
 void toBits(map<int, string> myMap, string* line){
@@ -173,55 +147,42 @@ void toBits(map<int, string> myMap, string* line){
     *line = bits;
 }
 
-string createOutput(vector<string>* file, map<int, string> myMap, int numThreads, uintmax_t len) {
-    // Read file
-    uintmax_t size = len / numThreads;
-    {
-        utimer timer("create output");
-        // Read file line by line
-        for (int i = 0; i < numThreads; i++)
-            pool.QueueJob([myMap, capture0 = &(*file)[i]] { return toBits(myMap, capture0); });
-        string output;
-        while (pool.busy());
-        for (int i = 0; i < numThreads; i++){
-            output.append((*file)[i]);
-        }
-        while (output.size() % 8 != 0) {
-            output.append("0");
-        }
-        return output;
+string createOutput(vector<string>* file, const map<int, string>& myMap, int numThreads, uintmax_t len) {
+    for (int i = 0; i < numThreads; i++)
+        pool.QueueJob([myMap, capture0 = &(*file)[i]] { return toBits(myMap, capture0); });
+    string output;
+    while (pool.busy());
+    for (int i = 0; i < numThreads; i++){
+        output.append((*file)[i]);
     }
+    while (output.size() % 8 != 0) {
+        output.append("0");
+    }
+    return output;
 }
 
 void writeToFile(const string& bits, const string& encodedFile, int numThreads){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
     mutex fileMutex;
-    {
-        utimer timer("write to file");
-        uintmax_t Start = (((bits.size() - (bits.size() % 8)) / 8) / numThreads + 1) * 8;
-        uintmax_t chunkSize = Start;
-        for (int i = 0; i < numThreads; i++) {
-            chunkSize += (i==numThreads-1) ? bits.size() - ((i+1)*Start) : 0;
-            pool.QueueJob([&bits, start=i*Start, chunkSize, &outputFile, &fileMutex]{
-                string output;
-                uint8_t n = 0;
-                uint8_t value = 0;
-                for(int j = 0; j<chunkSize; j++){
-                    value = (bits[start+j] == '1') | value << 1;
-                    if(++n == 8)
-                    {
-                        output.append((char*) (&value), 1);
-                        n = 0;
-                        value = 0;
-                    }
-                }
-                {
-                    unique_lock<mutex> lock(fileMutex);
-                    outputFile.seekp(start/8);
-                    outputFile.write(output.c_str(), output.size());
-                }
-            });
-        }
-        while (pool.busy());
+    uintmax_t Start = ((bits.size() - (bits.size() % 8)) / numThreads + 1);
+    uintmax_t chunkSize = Start;
+    for (int i = 0; i < numThreads; i++) {
+        chunkSize += (i==(numThreads)-1) * (bits.size() - ((i+1)*Start));
+        pool.QueueJob([&bits, start=i*Start, chunkSize, &outputFile, &fileMutex]{
+            string output;
+            uint8_t value = 0;
+            for(int j = 0; j<chunkSize; j+=8){
+                for (uint8_t n = 0; n < 8; n++)
+                    value = (bits[start+j+n] == '1') | value << 1;
+                output.push_back(value);
+                value = 0;
+            }
+            {
+                unique_lock<mutex> lock(fileMutex);
+                outputFile.seekp(start/8);
+                outputFile.write(output.c_str(), output.size());
+            }
+        });
     }
+    while (pool.busy());
 }

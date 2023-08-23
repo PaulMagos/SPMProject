@@ -75,14 +75,14 @@ void ThreadPool::QueueJob(const std::function<void()>& job) {
     {
         lock_guard<mutex> lock(queue_mutex[pos]);
         jobs[pos].push(job);
-        mutex_condition[pos].notify_one();
+        mutex_condition[pos].notify_all();
     }
 }
 
 void ThreadPool::Stop() {
     should_terminate = true;
     for (int i = 0; i < num_threads; i++) {
-        mutex_condition[i].notify_one();
+        mutex_condition[i].notify_all();
         threads[i].join();
     }
 }

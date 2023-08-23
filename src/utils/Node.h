@@ -1,10 +1,13 @@
 //
 // Created by Paul Magos on 06/08/23.
 //
+#include <utility>
+#include <vector>
+#include <map>
+#include <queue>
 
 #ifndef SPMPROJECT_NODE_H
 #define SPMPROJECT_NODE_H
-
 class Node{
     int value;
     int c;
@@ -36,7 +39,42 @@ class Node{
         void setRightChild(Node* node){
             this->right = node;
         }
+    public:
+    // Method for building the tree
+        static Node buildTree(std::vector<int> ascii)
+        {
+            Node *lChild, *rChild, *top;
+            // Min Heap
+            std::priority_queue<Node *, std::vector<Node *>, cmp> minHeap;
+            for (int i = 0; i < 256; i++) {
+                if (ascii[i] != 0) {
+                    minHeap.push(new Node(ascii[i], i));
+                }
+            }
+            while (minHeap.size() != 1) {
+                lChild = minHeap.top();
+                minHeap.pop();
 
+                rChild = minHeap.top();
+                minHeap.pop();
+
+                top = new Node(lChild->getValue() + rChild->getValue(), 256);
+
+                top->setLeftChild(lChild);
+                top->setRightChild(rChild);
+
+                minHeap.push(top);
+            }
+            return *minHeap.top();
+        }
+        static void createMap(Node root, std::map<int, std::string> *map, const std::string &prefix = ""){
+            if (root.getChar() != 256) {
+                (*map).insert(std::pair<int, std::string>(root.getChar(), prefix));
+            } else {
+                createMap(root.getLeftChild(), &(*map), prefix + "0");
+                createMap(root.getRightChild(), &(*map), prefix + "1");
+            }
+        }
         struct cmp
         {
             bool operator()(Node* node1, Node* node2) const
@@ -45,6 +83,5 @@ class Node{
             }
         };
 };
-
 
 #endif //SPMPROJECT_NODE_H
