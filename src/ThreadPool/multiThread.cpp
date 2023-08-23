@@ -28,7 +28,7 @@ using namespace std;
 #define OPT_LIST "hi:p:t:"
 
 void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads);
-vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file);
+void readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file, vector<int>* uAscii);
 void createOutput(vector<string>* myFile, const map<int, string>& myMap, int numThreads, uintmax_t len);
 
 ThreadPool pool;
@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
         }
         {
             utimer t("Read Frequencies");
-            ascii = readFrequencies(&in, numThreads, fileSize, &file);
+            readFrequencies(&in, numThreads, fileSize, &file, &ascii);
         }
         {
             utimer t("Create Map");
@@ -96,30 +96,29 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void calcChar(ifstream* myFile, string* myString, int i, uintmax_t size, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* ascii, vector<int>* uAscii){
+void calcChar(ifstream* myFile, string* myString, int i, uintmax_t size, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* uAscii){
+    vector<int> ascii(ASCII_MAX, 0);
     {
         unique_lock<mutex> lock(*readFileMutex);
         (*myFile).seekg(i * size);
         (*myFile).read(&(*myString)[0], size);
     }
-    for (char j : (*myString)) (*ascii)[j]++;
+    for (char j : (*myString)) (ascii)[j]++;
     {
         unique_lock<mutex> lock(*writeAsciiMutex);
         for (int j = 0; j < ASCII_MAX; j++) {
-            if ((*ascii)[j] != 0) {
-                (*uAscii)[j] += (*ascii)[j];
+            if ((ascii)[j] != 0) {
+                (*uAscii)[j] += (ascii)[j];
             }
         }
     }
 }
 
-vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file){
+void readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file, vector<int>* uAscii){
     // Read file
     uintmax_t size = len / numThreads;
     mutex readFileMutex;
     mutex writeAsciiMutex;
-    vector<vector<int>> ascii(numThreads, vector<int>(ASCII_MAX, 0));
-    vector<int> uAscii(ASCII_MAX, 0);
     // Read file line by line
     for (int i = 0; i < numThreads; i++){
         size = (i==numThreads-1) ? len - (i*size) : size;
@@ -130,12 +129,10 @@ vector<int> readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vec
                               size,
                               capture2 = &readFileMutex,
                               capture4 = &writeAsciiMutex,
-                              capture5 = &uAscii,
-                              capture3= &ascii[i]] {
-            return calcChar(capture0, capture1, i, size, capture2, capture4, capture3, capture5); });
+                              capture5 = &(*uAscii)] {
+            return calcChar(capture0, capture1, i, size, capture2, capture4, capture5); });
     }
     while (pool.busy());
-    return uAscii;
 }
 
 void toBits(map<int, string> myMap, string* line){

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <utility>
+#include <map>
 #include <vector>
 #include <mutex>
 #include <getopt.h>
@@ -23,43 +24,6 @@
 
 using namespace std;
 //using namespace ff;
-
-
-void Func(ifstream* myFile, string* myString, int i, uintmax_t size, uintmax_t size1, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* uAscii){
-    vector<int> ascii(ASCII_MAX, 0);
-    {
-        unique_lock<mutex> lock(*readFileMutex);
-        (*myFile).seekg(i * size1);
-        (*myFile).read(&(*myString)[0], size);
-    }
-    for (char j : (*myString)) (ascii)[j]++;
-    {
-        unique_lock<mutex> lock(*writeAsciiMutex);
-        for (int j = 0; j < ASCII_MAX; j++) {
-            if ((ascii)[j] != 0) {
-                (*uAscii)[j] += (ascii)[j];
-            }
-        }
-    }
-}
-
-struct fftask_t {
-    fftask_t(ifstream* myFile, string* myString, int i, uintmax_t size, uintmax_t size1, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* uAscii):
-    myFile(myFile), myString(myString), i(i), size(size), size1(size1), readFileMutex(readFileMutex), writeAsciiMutex(writeAsciiMutex), uAscii(uAscii) {}
-    ifstream* myFile;
-    string* myString;
-    int i;
-    uintmax_t size;
-    uintmax_t size1;
-    mutex* readFileMutex;
-    mutex* writeAsciiMutex;
-    vector<int>* uAscii;
-};
-static inline fftask_t* Wrapper(fftask_t *t, ff::ff_node *const) {
-    Func(&(*t->myFile), &(*t->myString), t->i, t->size, t->size1,&(*t->readFileMutex), &(*t->writeAsciiMutex), &(*t->uAscii));
-    return t;
-}
-
 
 
 int main(int argc, char* argv[])
@@ -89,31 +53,67 @@ int main(int argc, char* argv[])
         }
     }
 
-    ifstream in(inputFile, std::ifstream::ate | std::ifstream::binary);
+    ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
-    cout <<  fileSize << endl;
-    ff::ff_Farm<fftask_t> farm(Wrapper, numThreads, true);
-    farm.run();
-    vector<string> file= vector<string>(numThreads);
-    uintmax_t size1 = fileSize / numThreads;
-    vector<int> ascii(ASCII_MAX, 0);
-    // Read file line by line
-    mutex asciim;
-    mutex Filem;
-    fftask_t *task = nullptr;
-    uintmax_t size = size1;
-    {
-        utimer timer("Total");
-        {
-        utimer timr("Calculate freq");
 
-            for (uint i = 0; i < numThreads; i++){
-                size = (i==numThreads-1)? (fileSize-(i*size1)):size1;
-                farm.offload(new fftask_t(&in, &file[i], i, size, size1, &Filem, &asciim, &ascii));
-            }
-            farm.run_and_wait_end();
-        }
+    vector<string> file(numThreads);
+    map<int, string> myMap;
+
+    for (int i = 0; i < ASCII_MAX; i++) {
+        myMap[i] = bitset<8>(i).to_string();
     }
+
     return 0;
 }
 
+void calcChar(ifstream* myFile, string* myString, int i, uintmax_t size, uintmax_t size1, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* ascii, vector<int>* uAscii){
+    {
+        unique_lock<mutex> lock(*readFileMutex);
+        (*myFile).seekg(i * size1);
+        (*myFile).read(&(*myString)[0], size);
+    }
+    for (char j : (*myString)) (*ascii)[j]++;
+    {
+        unique_lock<mutex> lock(*writeAsciiMutex);
+        for (int j = 0; j < ASCII_MAX; j++) {
+            if ((*ascii)[j] != 0) {
+                (*uAscii)[j] += (*ascii)[j];
+            }
+        }
+    }
+}
+
+void toBits(map<int, string> myMap, string* line){
+    string bits;
+    for (char j : *line) {
+        bits.append(myMap[j]);
+    }
+    *line = bits;
+}
+
+void wWrite(uint8_t Start, uint8_t End, vector<string>* bits, int pos, uintmax_t writePos, ofstream& outputFile, mutex& fileMutex){
+    string output;
+    uint8_t value = 0;
+    int i;
+    for (i = Start; i < (*bits)[pos].size(); i+=8) {
+        for (uint8_t n = 0; n < 8; n++)
+            value = ((*bits)[pos][i+n]=='1') | value << 1;
+//            value |= ((*bits)[pos][i+n]=='1') << n;
+        output.append((char*) (&value), 1);
+        value = 0;
+    }
+    if (pos != (*bits).size()-1) {
+        for (uint8_t n = 0; n < 8-End; n++)
+            value = ((*bits)[pos][i-8+n]=='1') | value << 1;
+//            value |= ((*bits)[pos][i-8+n]=='1') << n;
+        for (i = 0; i < End; i++)
+            value = ((*bits)[pos+1][i]=='1') | value << 1;
+//            value |= ((*bits)[pos+1][i]=='1') << i;
+        output.append((char*) (&value), 1);
+    }
+    {
+        unique_lock<mutex> lock(fileMutex);
+        outputFile.seekp(writePos/8);
+        outputFile.write(output.c_str(), output.size());
+    }
+}
