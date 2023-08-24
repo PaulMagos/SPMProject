@@ -3,6 +3,7 @@
 //
 #include <iostream>
 #include <fstream>
+#include <mutex>
 #include <vector>
 #include <map>
 #define ASCII_MAX 256

@@ -7,6 +7,7 @@
 #include "../utils/Node.h"
 #include "../utils/utils.cpp"
 #include <iostream>
+#include <mutex>
 #include <fstream>
 #include <utility>
 #include <thread>
@@ -72,14 +73,14 @@ int main(int argc, char* argv[])
 
     {
         utimer timer("Total");
-        ffTime(START_TIME);
 
         /* -----------------        FREQ        ----------------- */
-        FF_PARFOR_BEGIN(test1, i, 0, NUM_OF_THREADS, 1, 1, NUM_OF_THREADS) {
-            calcChar(&in, &file[i], i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii);
-        }FF_PARFOR_END(test1);
-        ffTime(STOP_TIME);
-        printf("Time =%g\n", ffTime(GET_TIME));
+        {
+            utimer timr("Freq");
+            FF_PARFOR_BEGIN(test1, i, 0, NUM_OF_THREADS, 1, 1, NUM_OF_THREADS) {
+                calcChar(&in, &file[i], i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii);
+            }FF_PARFOR_END(test1);
+        }
 
         /* -----------------        HUFFMAN        ----------------- */
         {
@@ -87,37 +88,37 @@ int main(int argc, char* argv[])
             Node::createMap(Node::buildTree(ascii), &myMap);
         }
         /* -----------------        MAP        ----------------- */
-        ffTime(START_TIME);
-        FF_PARFOR_BEGIN(test2, i, 0, NUM_OF_THREADS, 1, 1, NUM_OF_THREADS) {
-            toBits(myMap, &file[i]);
-        }FF_PARFOR_END(test2);
-        ffTime(STOP_TIME);
-        printf("Time =%g\n", ffTime(GET_TIME));
+        {
+            utimer timr("Map");
+            FF_PARFOR_BEGIN(test2, i, 0, NUM_OF_THREADS, 1, 1, NUM_OF_THREADS) {
+                toBits(myMap, &file[i]);
+            }FF_PARFOR_END(test2);
+        }
 
         /* -----------------        OUTPUT        ----------------- */
-        ffTime(START_TIME);
-        uintmax_t writePos = 0;
-        uint8_t Start, End = 0;
-        mutex writefileMutex;
-        ofstream outputFile(encodedFile, ios::binary | ios::out);
-        vector<uintmax_t> writePositions(NUM_OF_THREADS);
-        vector<uintmax_t> Starts(NUM_OF_THREADS);
-        vector<uintmax_t> Ends(NUM_OF_THREADS);
-        for (int i = 0; i < NUM_OF_THREADS; i++) {
-            Start = End;
-            Starts[i] = Start;
-            if (i == NUM_OF_THREADS - 1)
-                file[i] += (string(((file[i].size() - Start) % 8), '0'));
-            Ends[i] = End;
-            End = 8 - (file[i].size() - Start) % 8;
-            writePositions[i] = writePos;
-            writePos += ((file[i].size() - Start) + End);
+        {
+            utimer timr("Output");
+            uintmax_t writePos = 0;
+            uint8_t Start, End = 0;
+            mutex writefileMutex;
+            ofstream outputFile(encodedFile, ios::binary | ios::out);
+            vector<uintmax_t> writePositions(NUM_OF_THREADS);
+            vector<uintmax_t> Starts(NUM_OF_THREADS);
+            vector<uintmax_t> Ends(NUM_OF_THREADS);
+            for (int i = 0; i < NUM_OF_THREADS; i++) {
+                Start = End;
+                Starts[i] = Start;
+                if (i == NUM_OF_THREADS - 1)
+                    file[i] += (string(((file[i].size() - Start) % 8), '0'));
+                Ends[i] = End;
+                End = 8 - (file[i].size() - Start) % 8;
+                writePositions[i] = writePos;
+                writePos += ((file[i].size() - Start) + End);
+            }
+            FF_PARFOR_BEGIN(test3, i, 0, NUM_OF_THREADS, 1, 1, NUM_OF_THREADS) {
+                wWrite(Starts[i], Ends[i], &file, i, writePositions[i], &outputFile, &writefileMutex);
+            }FF_PARFOR_END(test3);
         }
-        FF_PARFOR_BEGIN(test3, i, 0, NUM_OF_THREADS, 1, 1, NUM_OF_THREADS) {
-            wWrite(Starts[i], Ends[i], &file, i, writePositions[i], &outputFile, &writefileMutex);
-        }FF_PARFOR_END(test3);
-        ffTime(STOP_TIME);
-        printf("Time =%g\n", ffTime(GET_TIME));
     }
     return 0;
 }
