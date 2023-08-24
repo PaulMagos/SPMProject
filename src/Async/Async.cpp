@@ -112,9 +112,9 @@ void writeToFile(vector<string>* bits, const string& encodedFile){
     string line;
     for (int i = 0; i < NUM_OF_THREADS; i++) {
         Start = End;
-        End = 8 - ((*bits)[i].size()-Start)%8;
         if (i == NUM_OF_THREADS-1)
-            (*bits)[i] += (string(((*bits)[i].size()-Start)%8, '0'));
+            (*bits)[i] += (string(8-((*bits)[i].size()-Start)%8, '0'));
+        End = 8 - ((*bits)[i].size()-Start)%8;
         threads.emplace_back(wWrite, Start, End, &(*bits), i, writePos, &(outputFile), &(fileMutex));
         writePos += (((*bits)[i].size()-Start)+End);
     }

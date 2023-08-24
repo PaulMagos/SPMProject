@@ -87,7 +87,7 @@ void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vect
     vector<std::thread> threads;
     for (int i = 0; i < NUM_OF_THREADS; i++){
         threads.emplace_back([capture0 = &(*myFile),
-                                     capture1 = &(*file)[i],
+                                     capture1 = &(*file),
                                      i,
                                      nw=NUM_OF_THREADS,
                                      len,

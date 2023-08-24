@@ -23,17 +23,17 @@ using namespace std;
  * @param writeAsciiMutex: the mutex to lock the frequencies
  * @return void
  */
-void calcChar(ifstream* myFile, string* myString, int i, int nw, uintmax_t len, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* uAscii){
+void calcChar(ifstream* myFile, vector<string>* file, int i, int nw, uintmax_t len, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* uAscii){
     uintmax_t chunk = len / nw;
     uintmax_t size = (i == nw-1) ? len - (nw-1) * chunk : chunk;
-    (*myString) = string(size, ' ');
+    (*file)[i] = string(size, ' ');
     vector<int> ascii(ASCII_MAX, 0);
     {
         unique_lock<mutex> lock(*readFileMutex);
         (*myFile).seekg(i * chunk);
-        (*myFile).read(&(*myString)[0], size);
+        (*myFile).read(&(*file)[i][0], size);
     }
-    for (char j : (*myString)) (ascii)[j]++;
+    for (char j : (*file)[i]) (ascii)[j]++;
     {
         unique_lock<mutex> lock(*writeAsciiMutex);
         for (int j = 0; j < ASCII_MAX; j++) {
@@ -43,6 +43,27 @@ void calcChar(ifstream* myFile, string* myString, int i, int nw, uintmax_t len, 
         }
     }
 }
+
+auto frequency = [](ifstream* myFile, vector<string>* file, int i, int nw, uintmax_t len, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* uAscii){
+    uintmax_t chunk = len / nw;
+    uintmax_t size = (i == nw-1) ? len - (nw-1) * chunk : chunk;
+    (*file)[i] = string(size, ' ');
+    vector<int> ascii(ASCII_MAX, 0);
+    {
+        unique_lock<mutex> lock(*readFileMutex);
+        (*myFile).seekg(i * chunk);
+        (*myFile).read(&(*file)[i][0], size);
+    }
+    for (char j : (*file)[i]) (ascii)[j]++;
+    {
+        unique_lock<mutex> lock(*writeAsciiMutex);
+        for (int j = 0; j < ASCII_MAX; j++) {
+            if ((ascii)[j] != 0) {
+                (*uAscii)[j] += (ascii)[j];
+            }
+        }
+    }
+};
 
 void toBits(map<int, string> myMap, string* line){
     string bits;

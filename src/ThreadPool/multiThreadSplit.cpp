@@ -100,7 +100,7 @@ void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vect
     // Read file line by line
     for (int i = 0; i < NUM_OF_THREADS; i++){
         pool.QueueJob([capture0 = &(*myFile),
-                              capture1 = &(*file)[i],
+                              capture1 = &(*file),
                               i,
                               nw = NUM_OF_THREADS,
                               len,
@@ -126,9 +126,9 @@ void writeToFile(vector<string>* bits, const string& encodedFile){
     string line;
     for (int i = 0; i < NUM_OF_THREADS; i++) {
         Start = End;
-        End = 8 - ((*bits)[i].size()-Start)%8;
         if (i == NUM_OF_THREADS-1)
-            (*bits)[i] += (string(((*bits)[i].size()-Start)%8, '0'));
+            (*bits)[i] += (string(8-((*bits)[i].size()-Start)%8, '0'));
+        End = 8 - ((*bits)[i].size()-Start)%8;
         pool.QueueJob([Start, End, capture0 = &(*bits), i, writePos, capture1 = &outputFile, capture2 = &fileMutex]{
             wWrite(Start, End, capture0, i, writePos, capture1, capture2);
         });
