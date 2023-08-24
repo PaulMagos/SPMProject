@@ -21,7 +21,7 @@ using namespace std;
  */
 #define OPT_LIST "hi:p:"
 
-void readFrequencies(vector<int>* ascii, ifstream &myFile, string* file);
+void readFrequencies(vector<int>* ascii, ifstream &myFile, string* file, uintmax_t size);
 void writeToFile(const string& bits, const string& encodedFile);
 void createOutput(string* file, map<int, string> myMap);
 
@@ -51,13 +51,14 @@ int main(int argc, char* argv[])
 
 
     map<int, string> myMap;
-    ifstream myFile (inputFile);
+    ifstream myFile (inputFile, ifstream::binary | ifstream::ate);
+    uintmax_t fileSize = myFile.tellg();
     string file;
     {
         utimer total("Total");
         {
             utimer t("Calculate freq");
-            readFrequencies(&ascii, myFile, &file);
+            readFrequencies(&ascii, myFile, &file, fileSize);
         }
         {
             utimer t("CreateMap");
@@ -75,14 +76,15 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void readFrequencies(vector<int>* ascii, ifstream &myFile, string* file){
-    // Read file
-    while(myFile){
-        char c = myFile.get();
-        (*ascii)[c]++;
-        (*file).push_back(c);
+void readFrequencies(vector<int>* ascii, ifstream &myFile, string* file, uintmax_t size){
+    *file = string(size, ' ');
+    myFile.seekg(0);
+    myFile.read(&(*file)[0], size);
+    for (auto &i : *file) {
+        (*ascii)[i]++;
     }
 }
+
 
 void createOutput(string* inputFile, map<int, string> myMap) {
     string tmp;
@@ -98,7 +100,7 @@ void writeToFile(const string& bits, const string& encodedFile){
     uint8_t value = 0;
     for (long long unsigned i = 0; i < bits.size(); i += 8) {
         for (int j = 0; j < 8; j++) {
-            value = (bits[i + j]) | value << 1;
+            value = (bits[i + j]=='1') | value << 1;
         }
         outputFile.write((char*) (&value), 1);
         value = 0;

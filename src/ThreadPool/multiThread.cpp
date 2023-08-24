@@ -27,11 +27,12 @@ using namespace std;
  */
 #define OPT_LIST "hi:p:t:"
 
-void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads);
-void readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file, vector<int>* uAscii);
-void createOutput(vector<string>* myFile, const map<int, string>& myMap, int numThreads, uintmax_t len);
+void writeToFile(vector<string>* bits, const string& encodedFile);
+void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<int>* uAscii);
+void createOutput(vector<string>* myFile, const map<int, string>& myMap);
 
 ThreadPool pool;
+int NUM_OF_THREADS = 4;
 
 int main(int argc, char* argv[])
 {
@@ -39,7 +40,6 @@ int main(int argc, char* argv[])
     char option;
     vector<int> ascii(ASCII_MAX, 0);
     string inputFile, encodedFile, decodedFile;
-    int numThreads = 4;
 
     inputFile = "./data/TestFiles/";
     encodedFile = "./data/EncodedFiles/ThreadPool/";
@@ -53,7 +53,7 @@ int main(int argc, char* argv[])
                 encodedFile += optarg;
                 break;
             case 't':
-                numThreads = (int)atoi(optarg);
+                NUM_OF_THREADS = (int)atoi(optarg);
                 break;
             default:
                 cout << "Invalid option" << endl;
@@ -64,17 +64,17 @@ int main(int argc, char* argv[])
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
 
-    vector<string> file(numThreads);
+    vector<string> file(NUM_OF_THREADS);
     map<int, string> myMap;
     {
         utimer timer("Total");
         {
             utimer t("Pool Start");
-            pool.Start(numThreads);
+            pool.Start(NUM_OF_THREADS);
         }
         {
             utimer t("Read Frequencies");
-            readFrequencies(&in, numThreads, fileSize, &file, &ascii);
+            readFrequencies(&in, fileSize, &file, &ascii);
         }
         {
             utimer t("Create Map");
@@ -82,11 +82,11 @@ int main(int argc, char* argv[])
         }
         {
             utimer t("Create Output");
-            createOutput(&file, myMap, numThreads, fileSize);
+            createOutput(&file, myMap);
         }
         {
             utimer t("Write to File");
-            writeToFile(&file, encodedFile, numThreads);
+            writeToFile(&file, encodedFile);
         }
         {
             utimer t("Pool Stop");
@@ -96,48 +96,44 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file, vector<int>* uAscii){
+void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<int>* uAscii){
     // Read file
-    uintmax_t size1 = len / numThreads;
-    uintmax_t size = size1;
     mutex readFileMutex;
     mutex writeAsciiMutex;
     // Read file line by line
-    for (int i = 0; i < numThreads; i++){
-        size = (i==numThreads-1) ? len - (i*size1) : size1;
-        (*file)[i] = string(size, ' ');
+    for (int i = 0; i < NUM_OF_THREADS; i++){
         pool.QueueJob([capture0 = &(*myFile),
                               capture1 = &(*file)[i],
                               i,
-                              size,
-                              size1,
+                              nw = NUM_OF_THREADS,
+                              len,
                               capture2 = &readFileMutex,
                               capture4 = &writeAsciiMutex,
-                              capture5 = &(*uAscii)] { calcChar(capture0, capture1, i, size, size1, capture2, capture4, capture5); });
+                              capture5 = &(*uAscii)] { calcChar(capture0, capture1, i, nw, len, capture2, capture4, capture5); });
     }
     while (pool.busy());
 }
 
-void createOutput(vector<string>* file, const map<int, string>& myMap, int numThreads, uintmax_t len) {
-    for (int i = 0; i < numThreads; i++)
+void createOutput(vector<string>* file, const map<int, string>& myMap) {
+    for (int i = 0; i < NUM_OF_THREADS; i++)
         pool.QueueJob([myMap, capture0 = &(*file)[i]] { toBits(myMap, capture0); });
     while (pool.busy());
 }
 
-void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads){
+void writeToFile(vector<string>* bits, const string& encodedFile){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
-    vector<string> output(numThreads);
+    vector<string> output(NUM_OF_THREADS);
     mutex fileMutex;
     uintmax_t writePos = 0;
     uint8_t Start, End = 0;
     string line;
-    for (int i = 0; i < numThreads; i++) {
+    for (int i = 0; i < NUM_OF_THREADS; i++) {
         Start = End;
         End = 8 - ((*bits)[i].size()-Start)%8;
-        if (i == numThreads-1)
+        if (i == NUM_OF_THREADS-1)
             (*bits)[i] += (string(((*bits)[i].size()-Start)%8, '0'));
         pool.QueueJob([Start, End, capture0 = &(*bits), i, writePos, capture1 = &outputFile, capture2 = &fileMutex]{
-            wWrite(Start, End, capture0, i, writePos, ref(*capture1), ref(*capture2));
+            wWrite(Start, End, capture0, i, writePos, capture1, capture2);
         });
         writePos += (((*bits)[i].size()-Start)+End);
     }

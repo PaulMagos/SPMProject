@@ -21,16 +21,17 @@ using namespace std;
  */
 #define OPT_LIST "hi:p:t:"
 
-void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads);
-void readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file, vector<int>* uAscii);
-void createOutput(vector<string>* myFile, const map<int, string>& myMap, int numThreads);
+void writeToFile(vector<string>* bits, const string& encodedFile);
+void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<int>* uAscii);
+void createOutput(vector<string>* myFile, const map<int, string>& myMap);
+
+int NUM_OF_THREADS = 4;
 
 int main(int argc, char* argv[])
 {
     char option;
     vector<int> ascii(ASCII_MAX, 0);
     string inputFile, encodedFile, decodedFile;
-    int numThreads = 4;
 
     inputFile = "./data/TestFiles/";
     encodedFile = "./data/EncodedFiles/Threads/";
@@ -44,7 +45,7 @@ int main(int argc, char* argv[])
                 encodedFile += optarg;
                 break;
             case 't':
-                numThreads = (int)atoi(optarg);
+                NUM_OF_THREADS = (int)atoi(optarg);
                 break;
             default:
                 cout << "Invalid option" << endl;
@@ -55,14 +56,13 @@ int main(int argc, char* argv[])
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
 
-    vector<string> file(numThreads);
+    vector<string> file(NUM_OF_THREADS);
     map<int, string> myMap;
-    string output;
     {
         utimer timer("Total");
         {
             utimer t("Read Frequencies");
-            readFrequencies(&in, numThreads, fileSize, &file, &ascii);
+            readFrequencies(&in, fileSize, &file, &ascii);
         }
         {
             utimer t("Create Map");
@@ -70,68 +70,64 @@ int main(int argc, char* argv[])
         }
         {
             utimer t("Create output");
-            createOutput(&file, myMap, numThreads);
+            createOutput(&file, myMap);
         }
         {
             utimer t("Write to file");
-            writeToFile(&file, encodedFile, numThreads);
+            writeToFile(&file, encodedFile);
         }
     }
     return 0;
 }
 
-void readFrequencies(ifstream* myFile, int numThreads, uintmax_t len, vector<string>* file, vector<int>* uAscii){
+void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<int>* uAscii){
     // Read file
-    uintmax_t size = len / numThreads;
     mutex readFileMutex;
     mutex writeAsciiMutex;
     vector<std::thread> threads;
-    uintmax_t size1 = size;
-    for (int i = 0; i < numThreads; i++){
-        size = (i == numThreads - 1) ? len - (i * size1) : size1;
-        (*file)[i] = string(size, ' ');
+    for (int i = 0; i < NUM_OF_THREADS; i++){
         threads.emplace_back([capture0 = &(*myFile),
                                      capture1 = &(*file)[i],
                                      i,
-                                     size,
-                                     size1,
+                                     nw=NUM_OF_THREADS,
+                                     len,
                                      capture2 = &readFileMutex,
                                      capture4 = &writeAsciiMutex,
                                     capture5 = &(*uAscii)] {
-            return calcChar(capture0, capture1, i, size, size1, capture2, capture4, capture5); });
+            return calcChar(capture0, capture1, i, nw, len, capture2, capture4, capture5); });
     }
-    for (int i = 0; i < numThreads; i++) {
+    for (int i = 0; i < NUM_OF_THREADS; i++) {
         threads[i].join();
     }
 }
 
-void createOutput(vector<string>* file, const map<int, string>& myMap, int numThreads) {
+void createOutput(vector<string>* file, const map<int, string>& myMap) {
     vector<std::thread> threads;
-    threads.reserve(numThreads);
-    for (int i = 0; i < numThreads; i++)
+    threads.reserve(NUM_OF_THREADS);
+    for (int i = 0; i < NUM_OF_THREADS; i++)
         threads.emplace_back([myMap, capture0 = &(*file)[i]] { return toBits(myMap, capture0); });
-    for (int i = 0; i < numThreads; i++) {
+    for (int i = 0; i < NUM_OF_THREADS; i++) {
             threads[i].join();
     }
 }
 
-void writeToFile(vector<string>* bits, const string& encodedFile, int numThreads){
+void writeToFile(vector<string>* bits, const string& encodedFile){
     ofstream outputFile(encodedFile, ios::binary | ios::out);
-    vector<string> output(numThreads);
+    vector<string> output(NUM_OF_THREADS);
     mutex fileMutex;
     vector<std::thread> threads;
     uintmax_t writePos = 0;
     uint8_t Start, End = 0;
     string line;
-    for (int i = 0; i < numThreads; i++) {
+    for (int i = 0; i < NUM_OF_THREADS; i++) {
         Start = End;
         End = 8 - ((*bits)[i].size()-Start)%8;
-        if (i == numThreads-1)
+        if (i == NUM_OF_THREADS-1)
             (*bits)[i] += (string(((*bits)[i].size()-Start)%8, '0'));
-        threads.emplace_back(wWrite, Start, End, &(*bits), i, writePos, ref(outputFile), ref(fileMutex));
+        threads.emplace_back(wWrite, Start, End, &(*bits), i, writePos, &outputFile, &fileMutex);
         writePos += (((*bits)[i].size()-Start)+End);
     }
-    for (int i = 0; i < numThreads; i++) {
+    for (int i = 0; i < NUM_OF_THREADS; i++) {
         threads[i].join();
     }
 }
