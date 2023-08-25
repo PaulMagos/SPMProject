@@ -1,14 +1,13 @@
 //
 // Created by Paul Magos on 19/08/23.
 //
-#include "./fastflow/ff/ff.hpp"
+#include <ff/ff.hpp>
 #include "../utils/utimer.cpp"
 #include "../utils/Node.h"
 #include "../utils/utils.cpp"
 #include <iostream>
 #include <fstream>
-#include <utility>
-#include <thread>
+#include <mutex>
 #include <map>
 #include <vector>
 #include <getopt.h>
@@ -39,8 +38,7 @@ public:
 };
 
 namespace Ttask{
-    class ffFreq;
-        class Ttask::ffFreq : public Task{
+    class ffFreq  : public Task{
         public:
             explicit ffFreq(ifstream* myFile, vector<string>* file,
                             int i, int nw, uintmax_t len, mutex* readFileMutex,
@@ -56,16 +54,14 @@ namespace Ttask{
             mutex* writeAsciiMutex;
             vector<int>* uAscii;
         };
-    class ffMap;
-        class Ttask::ffMap : public Task{
+    class ffMap : public Task{
         public:
             explicit ffMap(vector<int>& ascii, map<int, string>* myMap) :
                     ascii(ascii), myMap(myMap) {}
             vector<int> ascii;
             map<int, string>* myMap;
         };
-    class ffBits;
-        class Ttask::ffBits : public Task{
+    class ffBits : public Task{
         public:
             explicit ffBits(map<int, string>& myMap, vector<string>* file, int i) :
                     myMap(myMap), file(file), i(i) {}
@@ -73,8 +69,7 @@ namespace Ttask{
             vector<string>* file;
             int i;
         };
-    class ffWrite;
-        class Ttask::ffWrite : public Task {
+    class ffWrite : public Task {
         public:
             explicit ffWrite(uintmax_t Start, uintmax_t End, vector<string>* bits,
                              int pos, uintmax_t writePos, ofstream* outputFile, mutex* fileMutex) :
@@ -176,7 +171,6 @@ int main(int argc, char* argv[])
 
         /* -----------------        HUFFMAN        ----------------- */
         node.svc(new Ttask::ffMap(ascii, &myMap));
-//        Node::createMap(Node::buildTree(ascii), &myMap);
 
         /* -----------------        MAP        ----------------- */
         for (int i = 0; i < NUM_OF_THREADS; i++) {

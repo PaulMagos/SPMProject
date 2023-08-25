@@ -88,7 +88,7 @@ void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vect
     mutex writeAsciiMutex;
     // Read file line by line
     for (int i = 0; i < NUM_OF_THREADS; i++){
-        futures.emplace_back(async(launch::async, calcChar, &(*myFile), &(*file)[i], i, NUM_OF_THREADS, len, &readFileMutex, &writeAsciiMutex, &(*uAscii)));
+        futures.emplace_back(async(launch::async, calcChar, &(*myFile), &(*file), i, NUM_OF_THREADS, len, &readFileMutex, &writeAsciiMutex, &(*uAscii)));
     }
     for (int i = 0; i < NUM_OF_THREADS; i++) futures[i].get();
 }
