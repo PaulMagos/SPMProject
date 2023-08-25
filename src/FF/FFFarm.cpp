@@ -2,7 +2,6 @@
 // Created by Paul Magos on 19/08/23.
 //
 #include "./fastflow/ff/ff.hpp"
-#include <ff/parallel_for.hpp>
 #include "../utils/utimer.cpp"
 #include "../utils/Node.h"
 #include "../utils/utils.cpp"
@@ -43,8 +42,11 @@ namespace Ttask{
     class ffFreq;
         class Ttask::ffFreq : public Task{
         public:
-            explicit ffFreq(ifstream* myFile, vector<string>* file, int i, int nw, uintmax_t len, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* uAscii) :
-                    myFile(myFile), file(file), i(i), nw(nw), len(len), readFileMutex(readFileMutex), writeAsciiMutex(writeAsciiMutex), uAscii(uAscii) {}
+            explicit ffFreq(ifstream* myFile, vector<string>* file,
+                            int i, int nw, uintmax_t len, mutex* readFileMutex,
+                            mutex* writeAsciiMutex, vector<int>* uAscii) :
+                    myFile(myFile), file(file), i(i), nw(nw), len(len),
+                    readFileMutex(readFileMutex), writeAsciiMutex(writeAsciiMutex), uAscii(uAscii) {}
             ifstream* myFile;
             vector<string>* file;
             int i;
@@ -54,19 +56,30 @@ namespace Ttask{
             mutex* writeAsciiMutex;
             vector<int>* uAscii;
         };
+    class ffMap;
+        class Ttask::ffMap : public Task{
+        public:
+            explicit ffMap(vector<int>& ascii, map<int, string>* myMap) :
+                    ascii(ascii), myMap(myMap) {}
+            vector<int> ascii;
+            map<int, string>* myMap;
+        };
     class ffBits;
         class Ttask::ffBits : public Task{
         public:
-            explicit ffBits(map<int, string>& myMap, string* file) :
-                    myMap(myMap), file(file) {}
+            explicit ffBits(map<int, string>& myMap, vector<string>* file, int i) :
+                    myMap(myMap), file(file), i(i) {}
             map<int, string> myMap;
-            string* file;
+            vector<string>* file;
+            int i;
         };
     class ffWrite;
         class Ttask::ffWrite : public Task {
         public:
-            explicit ffWrite(uintmax_t Start, uintmax_t End, vector<string>* bits, int pos, uintmax_t writePos, ofstream* outputFile, mutex* fileMutex) :
-            Start(Start), End(End), bits(bits), pos(pos), writePos(writePos), outputFile(outputFile), fileMutex(fileMutex) {}
+            explicit ffWrite(uintmax_t Start, uintmax_t End, vector<string>* bits,
+                             int pos, uintmax_t writePos, ofstream* outputFile, mutex* fileMutex) :
+            Start(Start), End(End), bits(bits), pos(pos), writePos(writePos),
+            outputFile(outputFile), fileMutex(fileMutex) {}
             uintmax_t Start;
             uintmax_t End;
             vector<string>* bits;
@@ -80,13 +93,17 @@ namespace Ttask{
 
 static inline Task* Wrapper(Task* task, ff_node *const){
     if (instanceof<Ttask::ffFreq>(task)) {
-        auto *task1 = (Ttask::ffFreq *) task;
-        calcChar(task1->myFile, task1->file, task1->i, task1->nw, task1->len, task1->readFileMutex,
-                 task1->writeAsciiMutex, task1->uAscii);
-    }
-    else if (instanceof<Ttask::ffBits>(task)){
-        auto *task1 = (Ttask::ffBits*) task;
-        toBits(task1->myMap, task1->file);
+        calcChar(((Ttask::ffFreq *) task)->myFile, ((Ttask::ffFreq *) task)->file, ((Ttask::ffFreq *) task)->i,
+                 ((Ttask::ffFreq *) task)->nw, ((Ttask::ffFreq *) task)->len, ((Ttask::ffFreq *) task)->readFileMutex,
+                 ((Ttask::ffFreq *) task)->writeAsciiMutex, ((Ttask::ffFreq *) task)->uAscii);
+    }else if (instanceof<Ttask::ffBits>(task)){
+        toBits2(((Ttask::ffBits*) task)->myMap, ((Ttask::ffBits*) task)->file, ((Ttask::ffBits*) task)->i);
+    }else if (instanceof<Ttask::ffWrite>(task)){
+        wWrite(((Ttask::ffWrite*) task)->Start, ((Ttask::ffWrite*) task)->End, ((Ttask::ffWrite*) task)->bits,
+               ((Ttask::ffWrite*) task)->pos, ((Ttask::ffWrite*) task)->writePos, ((Ttask::ffWrite*) task)->outputFile,
+               ((Ttask::ffWrite*) task)->fileMutex);
+    }else if (instanceof<Ttask::ffMap>(task)){
+        Node::createMap(Node::buildTree(((Ttask::ffMap*) task)->ascii), ((Ttask::ffMap*) task)->myMap);
     }
     return task;
 }
@@ -127,70 +144,62 @@ int main(int argc, char* argv[])
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     vector<string> file(NUM_OF_THREADS);
     uintmax_t fileSize = in.tellg();
+    ofstream outputFile(encodedFile, ios::binary | ios::out);
+    uintmax_t writePos = 0;
+    uint8_t Start, End = 0;
 
     /* -----------------       MUTEXES      ----------------- */
     mutex readFileMutex;
     mutex writeAsciiMutex;
+    mutex writefileMutex;
 
     ff_Farm<Task> farm(Wrapper, NUM_OF_THREADS, true);
     ff_Farm<Task> farm1(Wrapper, NUM_OF_THREADS, true);
+    ff_Farm<Task> farm2(Wrapper, NUM_OF_THREADS, true);
+    ff_node_F<Task> node(Wrapper);
     farm.run();
     farm1.run();
+    farm2.run();
 
+
+    cout << "NUM OF THREADS: " << NUM_OF_THREADS << endl;
+    cout << "Started Input FileSize: " << fileSize << endl;
     {
         utimer timer("Total");
-
-        /* -----------------        FREQ        ----------------- */
-        {
-            utimer timr("Freq");
-            for (int i = 0; i < NUM_OF_THREADS; i++) {
-                farm.offload(new Ttask::ffFreq(&in, &file, i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii));
-            }
-            farm.offload(farm.EOS);
-            farm.wait();
-            farm.stop();
+        /* -----------------        FREQUENCIES        ----------------- */
+        for (int i = 0; i < NUM_OF_THREADS; i++) {
+            farm.offload(new Ttask::ffFreq(&in, &file, i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii));
         }
+        farm.offload(farm.EOS);
+        farm.wait();
+        farm.stop();
 
         /* -----------------        HUFFMAN        ----------------- */
-        {
-            utimer timr("Huffman");
-            Node::createMap(Node::buildTree(ascii), &myMap);
-        }
+        node.svc(new Ttask::ffMap(ascii, &myMap));
+//        Node::createMap(Node::buildTree(ascii), &myMap);
+
         /* -----------------        MAP        ----------------- */
-        {
-            utimer timr("Map");
-            for (int i = 0; i < NUM_OF_THREADS; i++) {
-                farm1.offload(new Ttask::ffBits(myMap, &file[i]));
-            }
-            farm1.offload(farm.EOS);
-            farm1.wait();
-            farm1.stop();
+        for (int i = 0; i < NUM_OF_THREADS; i++) {
+            farm1.offload(new Ttask::ffBits(myMap, &file, i));
         }
+        farm1.offload(farm.EOS);
+        farm1.wait();
+        farm1.stop();
 
         /* -----------------        OUTPUT        ----------------- */
-        {
-            utimer timr("Output");
-            uintmax_t writePos = 0;
-            uint8_t Start, End = 0;
-            mutex writefileMutex;
-            ofstream outputFile(encodedFile, ios::binary | ios::out);
-            vector<uintmax_t> writePositions(NUM_OF_THREADS);
-            vector<uint8_t> Starts(NUM_OF_THREADS);
-            vector<uint8_t> Ends(NUM_OF_THREADS);
-            for (int i = 0; i < NUM_OF_THREADS; i++) {
-                Start = End;
-                Starts[i] = Ends[i-1] * (i != 0);
-                if (i == NUM_OF_THREADS - 1)
-                    file[i] += (string(8 - ((file[i].size() - Starts[i]) % 8), '0'));
-                Ends[i] = 8 - ((file[i].size() - Starts[i]) % 8);
-                End = 8 - (file[i].size() - Start) % 8;
-                writePositions[i] = writePos;
-                writePos += ((file[i].size() - Start) + End);
-            }
-            FF_PARFOR_BEGIN(test3, i, 0, NUM_OF_THREADS, 1, 1, NUM_OF_THREADS) {
-                wWrite(Starts[i], Ends[i], &file, i, writePositions[i], &outputFile, &writefileMutex);
-            }FF_PARFOR_END(test3);
+        for (int i = 0; i < NUM_OF_THREADS; i++) {
+            Start = End;
+            if (i == NUM_OF_THREADS - 1)
+                file[i] += (string(8 - ((file[i].size() - Start) % 8), '0'));
+            End = 8 - (file[i].size() - Start) % 8;
+            farm2.offload(new Ttask::ffWrite(Start, End, &file, i, writePos, &outputFile, &writefileMutex));
+            writePos += ((file[i].size() - Start) + End);
         }
+        farm2.offload(farm2.EOS);
+        farm2.wait();
+        farm2.stop();
     }
+    cout << "Finished Encoded FileSize: " << writePos/8 << endl;
+
     return 0;
 }
