@@ -162,35 +162,46 @@ int main(int argc, char* argv[])
     {
         utimer timer("Total");
         /* -----------------        FREQUENCIES        ----------------- */
-        for (int i = 0; i < NUM_OF_THREADS; i++) {
-            farm.offload(new Ttask::ffFreq(&in, &file, i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii));
+        {
+            utimer timer2("Read Frequencies");
+            for (int i = 0; i < NUM_OF_THREADS; i++) {
+                farm.offload(new Ttask::ffFreq(&in, &file, i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii));
+            }
+            farm.offload(farm.EOS);
+            farm.wait();
+            farm.stop();
         }
-        farm.offload(farm.EOS);
-        farm.wait();
-        farm.stop();
-        /* -----------------        HUFFMAN        ----------------- */
-        node.svc(new Ttask::ffMap(ascii, &myMap));
-
-        /* -----------------        MAP        ----------------- */
-        for (int i = 0; i < NUM_OF_THREADS; i++) {
-            farm1.offload(new Ttask::ffBits(myMap, &file, i));
+        /* -----------------        Tree        ----------------- */
+        {
+            utimer timer3("Tree");
+            node.svc(new Ttask::ffMap(ascii, &myMap));
         }
-        farm1.offload(farm.EOS);
-        farm1.wait();
-        farm1.stop();
 
+        /* -----------------        Encode        ----------------- */
+        {
+            utimer timer4("Encode");
+            for (int i = 0; i < NUM_OF_THREADS; i++) {
+                farm1.offload(new Ttask::ffBits(myMap, &file, i));
+            }
+            farm1.offload(farm.EOS);
+            farm1.wait();
+            farm1.stop();
+        }
         /* -----------------        OUTPUT        ----------------- */
-        for (int i = 0; i < NUM_OF_THREADS; i++) {
-            Start = End;
-            if (i == NUM_OF_THREADS - 1)
-                file[i] += (string(8 - ((file[i].size() - Start) % 8), '0'));
-            End = 8 - (file[i].size() - Start) % 8;
-            farm2.offload(new Ttask::ffWrite(Start, End, &file, i, writePos, &outputFile, &writefileMutex));
-            writePos += ((file[i].size() - Start) + End);
+        {
+            utimer timer5("Write");
+            for (int i = 0; i < NUM_OF_THREADS; i++) {
+                Start = End;
+                if (i == NUM_OF_THREADS - 1)
+                    file[i] += (string(8 - ((file[i].size() - Start) % 8), '0'));
+                End = 8 - (file[i].size() - Start) % 8;
+                farm2.offload(new Ttask::ffWrite(Start, End, &file, i, writePos, &outputFile, &writefileMutex));
+                writePos += ((file[i].size() - Start) + End);
+            }
+            farm2.offload(farm2.EOS);
+            farm2.wait();
+            farm2.stop();
         }
-        farm2.offload(farm2.EOS);
-        farm2.wait();
-        farm2.stop();
     }
     cout << "Finished Encoded FileSize: " << writePos/8 << endl;
 

@@ -67,32 +67,44 @@ int main(int argc, char* argv[]){
     {
         utimer timer("Total");
         /* Count frequencies */
-        parallel_for(0, NUM_OF_THREADS, [&](const int i){
-            calcChar(&in, &file, i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii);
-        }, NUM_OF_THREADS);
-        Node::createMap(Node::buildTree(ascii), &myMap);
-        parallel_for(0, NUM_OF_THREADS, [&](const int i){
-            toBits(myMap, &file[i]);
-        }, NUM_OF_THREADS);
-        uintmax_t writePos = 0;
-        uint8_t Start, End = 0;
-        vector<uint8_t> Starts(NUM_OF_THREADS), Ends(NUM_OF_THREADS);
-        vector<uintmax_t> writePositions(NUM_OF_THREADS);
-        mutex writefileMutex;
-        ofstream outputFile(encodedFile, ios::binary | ios::out);
-        for (int i = 0; i < NUM_OF_THREADS; ++i) {
-            Start = End;
-            Starts[i] = Start;
-            if(i==NUM_OF_THREADS-1)
-                file[i].append(string(8-((file[i].size() - Start)%8), '0'));
-            End = 8 - (file[i].size()-Start)%8;
-            Ends[i] = End;
-            writePositions[i] = writePos;
-            writePos += (file[i].size()-Start)+End;
+        {
+            utimer timer2("Read Frequencies");
+            parallel_for(0, NUM_OF_THREADS, [&](const int i){
+                calcChar(&in, &file, i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii);
+            }, NUM_OF_THREADS);
         }
-        parallel_for(0, NUM_OF_THREADS, [&](const int i){
-            wWrite(Starts[i], Ends[i], &file, i, writePositions[i], &outputFile, &writefileMutex);
-        }, NUM_OF_THREADS);
+        {
+            utimer timer3("Create Map");
+            Node::createMap(Node::buildTree(ascii), &myMap);
+        }
+        {
+            utimer timer4("Encode");
+            parallel_for(0, NUM_OF_THREADS, [&](const int i){
+                toBits(myMap, &file[i]);
+            }, NUM_OF_THREADS);
+        }
+        {
+            utimer timer5("Write File");
+            uintmax_t writePos = 0;
+            uint8_t Start, End = 0;
+            vector<uint8_t> Starts(NUM_OF_THREADS), Ends(NUM_OF_THREADS);
+            vector<uintmax_t> writePositions(NUM_OF_THREADS);
+            mutex writefileMutex;
+            ofstream outputFile(encodedFile, ios::binary | ios::out);
+            for (int i = 0; i < NUM_OF_THREADS; ++i) {
+                Start = End;
+                Starts[i] = Start;
+                if(i==NUM_OF_THREADS-1)
+                    file[i].append(string(8-((file[i].size() - Start)%8), '0'));
+                End = 8 - (file[i].size()-Start)%8;
+                Ends[i] = End;
+                writePositions[i] = writePos;
+                writePos += (file[i].size()-Start)+End;
+            }
+            parallel_for(0, NUM_OF_THREADS, [&](const int i){
+                wWrite(Starts[i], Ends[i], &file, i, writePositions[i], &outputFile, &writefileMutex);
+            }, NUM_OF_THREADS);
+        }
     }
 
 
