@@ -60,7 +60,7 @@ void toBits(map<uintmax_t, string> myMap, vector<string>* line, int i){
     (*line)[i] = bits;
 }
 
-void wWrite(uintmax_t Start, uintmax_t End, vector<string>* bits, int pos, uintmax_t writePos, ofstream* outputFile, mutex* fileMutex){
+void wWrite(uint8_t Start, uint8_t End, vector<string>* bits, int pos, uintmax_t writePos, ofstream* outputFile, mutex* fileMutex){
     string output;
     uint8_t value = 0;
     int i;
