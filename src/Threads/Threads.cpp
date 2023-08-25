@@ -22,15 +22,15 @@ using namespace std;
 #define OPT_LIST "hi:p:t:"
 
 void writeToFile(vector<string>* bits, const string& encodedFile);
-void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<int>* uAscii);
-void createOutput(vector<string>* myFile, const map<int, string>& myMap);
+void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<uintmax_t>* uAscii);
+void createOutput(vector<string>* myFile, const map<uintmax_t, string>& myMap);
 
 int NUM_OF_THREADS = 4;
 
 int main(int argc, char* argv[])
 {
     char option;
-    vector<int> ascii(ASCII_MAX, 0);
+    vector<uintmax_t> ascii(ASCII_MAX, 0);
     string inputFile, encodedFile, decodedFile;
 
     inputFile = "./data/TestFiles/";
@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
     uintmax_t fileSize = in.tellg();
 
     vector<string> file(NUM_OF_THREADS);
-    map<int, string> myMap;
+    map<uintmax_t, string> myMap;
     {
         utimer timer("Total");
         {
@@ -80,7 +80,7 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<int>* uAscii){
+void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<uintmax_t>* uAscii){
     // Read file
     mutex readFileMutex;
     mutex writeAsciiMutex;
@@ -101,7 +101,7 @@ void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vect
     }
 }
 
-void createOutput(vector<string>* file, const map<int, string>& myMap) {
+void createOutput(vector<string>* file, const map<uintmax_t, string>& myMap) {
     vector<std::thread> threads;
     threads.reserve(NUM_OF_THREADS);
     for (int i = 0; i < NUM_OF_THREADS; i++)

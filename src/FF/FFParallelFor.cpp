@@ -30,9 +30,9 @@ int NUM_OF_THREADS = 4;
 int main(int argc, char* argv[]){
     /* -----------------        VARIABLES        ----------------- */
     char option;
-    vector<int> ascii(ASCII_MAX, 0);
+    vector<uintmax_t> ascii(ASCII_MAX, 0);
     string inputFile, encodedFile, decodedFile;
-    map<int, string> myMap;
+    map<uintmax_t, string> myMap;
 
     inputFile = "./data/TestFiles/";
     encodedFile = "./data/EncodedFiles/FF/";
@@ -64,30 +64,20 @@ int main(int argc, char* argv[]){
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     vector<string> file(NUM_OF_THREADS);
     uintmax_t fileSize = in.tellg();
-
     {
         utimer timer("Total");
-        {
-            utimer timer2("Read Frequencies");
-            /* Read file and count frequencies */
-            uintmax_t chunk = fileSize / NUM_OF_THREADS;
-            parallel_for(0, fileSize, 1, chunk, [&in, &file, &readFileMutex, &writeAsciiMutex, &ascii, &chunk](const long i){
-                {
-                    unique_lock<mutex> lock(readFileMutex);
-                    in.seekg(ff_getThreadID()*chunk);
-                    cout << "Thread " << ff_getThreadID() << " reading " << chunk << " bytes" << endl;
-                    in.read(&file[ff_getThreadID()][0], chunk);
-                }
-                {
-                    unique_lock<mutex> lock(writeAsciiMutex);
-                    for (char c : file[ff_getThreadID()])
-                        ascii[(int)c]++;
-                }
-            }, NUM_OF_THREADS);
-        }
+        /* Count frequencies */
+        parallel_for(0, NUM_OF_THREADS, [&](const int i){
+            calcChar(&in, &file, i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii);
+        }, NUM_OF_THREADS);
+        Node::createMap(Node::buildTree(ascii), &myMap);
+        parallel_for(0, NUM_OF_THREADS, [&](const int i){
+            toBits(myMap, &file[i]);
+        }, NUM_OF_THREADS);
     }
 
-
-
+    for (int i = 0; i < ASCII_MAX; i++)
+        if (ascii[i] != 0)
+            cout << (char)i << " : " << myMap[i] << endl;
     return 0;
 }

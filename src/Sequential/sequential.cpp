@@ -21,15 +21,15 @@ using namespace std;
  */
 #define OPT_LIST "hi:p:"
 
-void readFrequencies(vector<int>* ascii, ifstream &myFile, string* file, uintmax_t size);
+void readFrequencies(vector<uintmax_t>* ascii, ifstream &myFile, string* file, uintmax_t size);
 void writeToFile(const string& bits, const string& encodedFile);
-void createOutput(string* file, map<int, string> myMap);
+void createOutput(string* file, map<uintmax_t, string> myMap);
 
 int main(int argc, char* argv[])
 {
 
     char option;
-    vector<int> ascii(ASCII_MAX, 0);
+    vector<uintmax_t> ascii(ASCII_MAX, 0);
     string inputFile, encodedFile, decodedFile;
 
     inputFile = "./data/TestFiles/";
@@ -50,7 +50,7 @@ int main(int argc, char* argv[])
     }
 
 
-    map<int, string> myMap;
+    map<uintmax_t, string> myMap;
     ifstream myFile (inputFile, ifstream::binary | ifstream::ate);
     uintmax_t fileSize = myFile.tellg();
     string file;
@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void readFrequencies(vector<int>* ascii, ifstream &myFile, string* file, uintmax_t size){
+void readFrequencies(vector<uintmax_t>* ascii, ifstream &myFile, string* file, uintmax_t size){
     *file = string(size, ' ');
     myFile.seekg(0);
     myFile.read(&(*file)[0], size);
@@ -86,7 +86,7 @@ void readFrequencies(vector<int>* ascii, ifstream &myFile, string* file, uintmax
 }
 
 
-void createOutput(string* inputFile, map<int, string> myMap) {
+void createOutput(string* inputFile, map<uintmax_t, string> myMap) {
     string tmp;
     for (auto &i : *inputFile) {
         (tmp).append(myMap[i]);

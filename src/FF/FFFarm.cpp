@@ -42,7 +42,7 @@ namespace Ttask{
         public:
             explicit ffFreq(ifstream* myFile, vector<string>* file,
                             int i, int nw, uintmax_t len, mutex* readFileMutex,
-                            mutex* writeAsciiMutex, vector<int>* uAscii) :
+                            mutex* writeAsciiMutex, vector<uintmax_t>* uAscii) :
                     myFile(myFile), file(file), i(i), nw(nw), len(len),
                     readFileMutex(readFileMutex), writeAsciiMutex(writeAsciiMutex), uAscii(uAscii) {}
             ifstream* myFile;
@@ -52,20 +52,20 @@ namespace Ttask{
             uintmax_t len;
             mutex* readFileMutex;
             mutex* writeAsciiMutex;
-            vector<int>* uAscii;
+            vector<uintmax_t>* uAscii;
         };
     class ffMap : public Task{
         public:
-            explicit ffMap(vector<int>& ascii, map<int, string>* myMap) :
+            explicit ffMap(vector<uintmax_t>& ascii, map<uintmax_t, string>* myMap) :
                     ascii(ascii), myMap(myMap) {}
-            vector<int> ascii;
-            map<int, string>* myMap;
+            vector<uintmax_t> ascii;
+            map<uintmax_t, string>* myMap;
         };
     class ffBits : public Task{
         public:
-            explicit ffBits(map<int, string>& myMap, vector<string>* file, int i) :
+            explicit ffBits(map<uintmax_t, string>& myMap, vector<string>* file, int i) :
                     myMap(myMap), file(file), i(i) {}
-            map<int, string> myMap;
+            map<uintmax_t, string> myMap;
             vector<string>* file;
             int i;
         };
@@ -92,7 +92,7 @@ static inline Task* Wrapper(Task* task, ff_node *const){
                  ((Ttask::ffFreq *) task)->nw, ((Ttask::ffFreq *) task)->len, ((Ttask::ffFreq *) task)->readFileMutex,
                  ((Ttask::ffFreq *) task)->writeAsciiMutex, ((Ttask::ffFreq *) task)->uAscii);
     }else if (instanceof<Ttask::ffBits>(task)){
-        toBits2(((Ttask::ffBits*) task)->myMap, ((Ttask::ffBits*) task)->file, ((Ttask::ffBits*) task)->i);
+        toBits(((Ttask::ffBits*) task)->myMap, ((Ttask::ffBits*) task)->file, ((Ttask::ffBits*) task)->i);
     }else if (instanceof<Ttask::ffWrite>(task)){
         wWrite(((Ttask::ffWrite*) task)->Start, ((Ttask::ffWrite*) task)->End, ((Ttask::ffWrite*) task)->bits,
                ((Ttask::ffWrite*) task)->pos, ((Ttask::ffWrite*) task)->writePos, ((Ttask::ffWrite*) task)->outputFile,
@@ -108,9 +108,9 @@ int main(int argc, char* argv[])
 {
     /* -----------------        VARIABLES        ----------------- */
     char option;
-    vector<int> ascii(ASCII_MAX, 0);
+    vector<uintmax_t> ascii(ASCII_MAX, 0);
     string inputFile, encodedFile, decodedFile;
-    map<int, string> myMap;
+    map<uintmax_t, string> myMap;
 
     inputFile = "./data/TestFiles/";
     encodedFile = "./data/EncodedFiles/FF/";
@@ -168,7 +168,6 @@ int main(int argc, char* argv[])
         farm.offload(farm.EOS);
         farm.wait();
         farm.stop();
-
         /* -----------------        HUFFMAN        ----------------- */
         node.svc(new Ttask::ffMap(ascii, &myMap));
 

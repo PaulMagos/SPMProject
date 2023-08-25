@@ -9,7 +9,7 @@
 #ifndef SPMPROJECT_NODE_H
 #define SPMPROJECT_NODE_H
 class Node{
-    int value;
+    uintmax_t value;
     int c;
     int code;
     Node *left, *right;
@@ -41,7 +41,7 @@ class Node{
         }
     public:
     // Method for building the tree
-        static Node buildTree(std::vector<int> ascii)
+        static Node buildTree(std::vector<uintmax_t> ascii)
         {
             Node *lChild, *rChild, *top;
             // Min Heap
@@ -67,9 +67,9 @@ class Node{
             }
             return *minHeap.top();
         }
-        static void createMap(Node root, std::map<int, std::string> *map, const std::string &prefix = ""){
+        static void createMap(Node root, std::map<uintmax_t, std::string> *map, const std::string &prefix = ""){
             if (root.getChar() != 256) {
-                (*map).insert(std::pair<int, std::string>(root.getChar(), prefix));
+                (*map).insert(std::pair<uintmax_t, std::string>(root.getChar(), prefix));
             } else {
                 createMap(root.getLeftChild(), &(*map), prefix + "0");
                 createMap(root.getRightChild(), &(*map), prefix + "1");

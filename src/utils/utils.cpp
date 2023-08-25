@@ -23,7 +23,7 @@ using namespace std;
  * @param writeAsciiMutex: the mutex to lock the frequencies
  * @return void
  */
-void calcChar(ifstream* myFile, vector<string>* file, int i, int nw, uintmax_t len, mutex* readFileMutex, mutex* writeAsciiMutex, vector<int>* uAscii){
+void calcChar(ifstream* myFile, vector<string>* file, int i, int nw, uintmax_t len, mutex* readFileMutex, mutex* writeAsciiMutex, vector<uintmax_t>* uAscii){
     uintmax_t chunk = len / nw;
     uintmax_t size = (i == nw-1) ? len - (nw-1) * chunk : chunk;
     (*file)[i] = string(size, ' ');
@@ -44,7 +44,7 @@ void calcChar(ifstream* myFile, vector<string>* file, int i, int nw, uintmax_t l
     }
 }
 
-void toBits(map<int, string> myMap, string* line){
+void toBits(map<uintmax_t, string> myMap, string* line){
     string bits;
     for (char j : *line) {
         bits.append(myMap[j]);
@@ -52,7 +52,7 @@ void toBits(map<int, string> myMap, string* line){
     *line = bits;
 }
 
-void toBits2(map<int, string> myMap, vector<string>* line, int i){
+void toBits(map<uintmax_t, string> myMap, vector<string>* line, int i){
     string bits;
     for (char j : (*line)[i]) {
         bits.append(myMap[j]);
