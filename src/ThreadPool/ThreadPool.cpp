@@ -78,8 +78,11 @@ int main(int argc, char* argv[])
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
     if(Tasks==0) optimal(&Tasks, &NUM_OF_THREADS, fileSize);
-    encFile = MyDir + "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
-
+    #if defined(ALL)
+        encFile = MyDir + (ALL? "All_":"") + "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
+    #else
+        encFile = MyDir + "Best_" + "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
+    #endif
     vector<long> timers(10, 0);
     vector<string> file(Tasks);
     vector<uintmax_t> writePositions(Tasks);
@@ -107,6 +110,8 @@ int main(int argc, char* argv[])
                 utimer t("Write to File", &timers[4]);
                 writeToFile(&file, encFile);
             }
+            // Encoded file dim
+            for (int i = 0; i < Tasks; i++) writePos += file[i].size();
         #elif defined(ALL) and ALL
             {
                 utimer t("Read File", &timers[1]);
@@ -126,21 +131,7 @@ int main(int argc, char* argv[])
             }
             {
                 utimer t("To bytes", &timers[5]);
-                vector<string> output(Tasks);
-                vector<std::thread> threads;
-                uint8_t Start, End = 0;
-                for (int i = 0; i < Tasks; i++) {
-                    Start = End;
-                    End = (8 - ((file)[i].size()-Start)%8)%8;
-                    if (i == Tasks-1)
-                        (file)[i] += string(8-((file)[i].size()-Start)%8, '0');
-                    (writePositions)[i] = (writePos);
-                    pool.QueueJob([&Start, &End, &file, &i, capture1 = &output[i]]
-                        {toByte(&Start, &End, &file, &i, capture1);});
-                    (writePos) += file[i].size()-Start+End;
-                }
-                while (pool.busy());
-                file = output;
+                tobytes(&file, &writePositions, &writePos);
             }
             {
                 utimer t("Write to File", &timers[6]);
@@ -165,6 +156,31 @@ int main(int argc, char* argv[])
             pool.Stop();
         }
     }
+
+    #if defined(ALL)
+        timers[9] = timers[8] - timers[1] - timers[6];
+        #if not ALL
+            timers[0] = 0;
+            timers[1] = 0;
+            timers[6] = 0;
+            timers[7] = 0;
+        #endif
+    #endif
+
+    writeResults(encFileName, fileSize, writePos, NUM_OF_THREADS, timers, csvFile, true,
+    #if defined(ALL)
+        ALL
+    #else
+        true
+    #endif
+    ,
+    #if not defined(ALL)
+        true
+    #else
+        false
+    #endif
+    ,
+    Tasks);
     return 0;
 }
 
@@ -232,7 +248,7 @@ void tobytes(vector<string>* bits, vector<uintmax_t>* writePositions, uintmax_t*
         if (i == Tasks-1)
             (*bits)[i] += (string(8-((*bits)[i].size()-Start)%8, '0'));
         (*writePositions)[i] = (*writePos);
-        pool.QueueJob([Start, End, bits1 = *bits, i, capture1 = &output[i]]{
+        pool.QueueJob([Start, End, bits1 = &(*bits), i, capture1 = &output[i]]{
             toByte(Start, End, bits1, i, capture1);
         });
         (*writePos) += (((*bits)[i].size()-Start)+End);

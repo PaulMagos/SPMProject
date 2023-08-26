@@ -106,7 +106,7 @@ int main(int argc, char* argv[])
                         (file)[i] += (string(8-((file)[i].size()-Start)%8, '0'));
                     End = (8 - ((file)[i].size()-Start)%8) % 8;
                     (writePositions)[i] = (writePos);
-                    futures.emplace_back(async(launch::async, toByte, Start, End, (file), i, &output[i]));
+                    futures.emplace_back(async(launch::async, toByte, Start, End, &file, i, &output[i]));
                     (writePos) += file[i].size() - Start + End;
                 }
                 for (int i = 0; i < NUM_OF_THREADS; i++) futures[i].get();
@@ -132,7 +132,7 @@ int main(int argc, char* argv[])
                     (file)[i] += (string(8-((file)[i].size()-Start)%8, '0'));
                 End = (8 - ((file)[i].size()-Start)%8) % 8;
                 (writePositions)[i] = (writePos);
-                futures.emplace_back(async(launch::async, toByte, Start, End, (file), i, &output[i]));
+                futures.emplace_back(async(launch::async, toByte, Start, End, &file, i, &output[i]));
                 (writePos) += file[i].size() - Start + End;
             }
             for (int i = 0; i < NUM_OF_THREADS; i++) futures[i].get();

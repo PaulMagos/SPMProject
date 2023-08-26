@@ -75,41 +75,21 @@ void toBits(map<uintmax_t, string> myMap, vector<string>* file, int i){
     (*file)[i] = bits;
 }
 
-void toByte(uint8_t Start, uint8_t End, vector<string> bits, int pos, string* out){
+void toByte(uint8_t Start, uint8_t End, vector<string>* bits, int pos, string* out){
     string output;
     uint8_t value = 0;
     int i;
-    for (i = Start; i < (bits)[pos].size(); i+=8) {
+    for (i = Start; i < (*bits)[pos].size(); i+=8) {
         for (uint8_t n = 0; n < 8; n++)
-            value = ((bits)[pos][i+n]=='1') | value << 1;
+            value = ((*bits)[pos][i+n]=='1') | value << 1;
         output.append((char*) (&value), 1);
         value = 0;
     }
-    if (pos != (bits).size()-1) {
+    if (pos != (*bits).size()-1) {
         for (uint32_t n = 0; n < 8-End; n++)
-            value = ((bits)[pos][i-8+n]=='1') | value << 1;
+            value = ((*bits)[pos][i-8+n]=='1') | value << 1;
         for (i = 0; i < End; i++)
-            value = ((bits)[pos+1][i]=='1') | value << 1;
-        output.append((char*) (&value), 1);
-    }
-    (*out)=output;
-}
-
-void toByte(uint8_t* Start, uint8_t* End, vector<string>* bits, int* pos, string* out){
-    string output;
-    uint8_t value = 0;
-    int i;
-    for (i = *Start; i < (bits)[*pos].size(); i+=8) {
-        for (uint8_t n = 0; n < 8; n++)
-            value = ((*bits)[*pos][i+n]=='1') | value << 1;
-        output.append((char*) (&value), 1);
-        value = 0;
-    }
-    if (*pos != (*bits).size()-1) {
-        for (uint32_t n = 0; n < 8-(*End); n++)
-            value = ((*bits)[*pos][i-8+n]=='1') | value << 1;
-        for (i = 0; i < (*End); i++)
-            value = ((*bits)[(*pos)+1][i]=='1') | value << 1;
+            value = ((*bits)[pos+1][i]=='1') | value << 1;
         output.append((char*) (&value), 1);
     }
     (*out)=output;
@@ -148,20 +128,24 @@ void wWrite(uint8_t Start, uint8_t End, vector<string>* bits, int pos, uintmax_t
 }
 
 
-void writeResults(const string& testName, uintmax_t fileSize, uintmax_t writePos, int numOfThreads, const vector<long>& timers, const string& csvFile, bool pool= false, bool all=false){
+void writeResults(const string& testName, uintmax_t fileSize, uintmax_t writePos, int numOfThreads, const vector<long>& timers, const string& csvFile, bool pool= false, bool all=false,bool myImpl= false, int Tasks=0){
     string csv;
     csv.append(testName).append(";");
     csv.append(to_string(fileSize)).append(";");
     csv.append(to_string(writePos/8)).append(";");
     csv.append(to_string(numOfThreads)).append(";");
+    if (pool) csv.append(to_string(Tasks)).append(";");
     for (long timer : timers) if(timer!=0) csv.append(to_string(timer)).append(";");
     ofstream file;
     // Open file, if empty add header else append
     file.open(csvFile, ios::out | ios::app);
     if (file.tellp() == 0) {
         file << "Test File;File Size;Encoding Size;Nw;" << (pool? "Tasks;":"");
-        if (all) file << (pool? "Start Pool;":"") << "Read;Count;Tree;Encode;Bytes;Write;" << (pool? "End Pool;":"");
-        file << "Total;Computation;" << endl;
+        if (all && !myImpl) file << (pool? "Start Pool;":"") << "Read;Count;Tree;Encode;Bytes;Write;" << (pool? "End Pool;":"");
+        else if (myImpl) file << (pool? "Start Pool;":"") << "Read&Count;Tree;Encode;Bytes&Write;" << (pool? "End Pool;":"");
+        file << "Total;";
+        if (!myImpl) file << "Computation;";
+        file << endl;
     }
     else
         file.seekp(-1, ios_base::end);
@@ -184,6 +168,7 @@ void optimal(int* tasks, int* nw, uintmax_t fileSize){
         *tasks = *nw;
         *nw = tmp;
     }
+    if(*nw > thread::hardware_concurrency()) *nw = thread::hardware_concurrency();
 }
 
 void read(uintmax_t fileSize, ifstream* in, vector<string>* file, int nw){

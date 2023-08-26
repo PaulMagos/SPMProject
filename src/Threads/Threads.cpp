@@ -156,7 +156,7 @@ void tobytes(vector<string>* bits, vector<uintmax_t>* writePositions, uintmax_t*
         if (i == NUM_OF_THREADS-1)
             (*bits)[i] += (string(8-((*bits)[i].size()-Start)%8, '0'));
         (*writePositions)[i] = (*writePos);
-        threads.emplace_back(toByte, Start, End, *bits, i, &output[i]);
+        threads.emplace_back(toByte, Start, End, &(*bits), i, &output[i]);
         (*writePos) += (((*bits)[i].size()-Start)+End);
     }
     for (int i = 0; i < NUM_OF_THREADS; i++) {
