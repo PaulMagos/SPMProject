@@ -32,7 +32,7 @@ void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vect
 void createOutput(vector<string>* myFile, const map<uintmax_t,string>& myMap);
 
 ThreadPool pool;
-int NUM_OF_THREADS = 4;
+int NUM_OF_THREADS = thread::hardware_concurrency();
 int Tasks = 0;
 
 int main(int argc, char* argv[])
@@ -67,11 +67,11 @@ int main(int argc, char* argv[])
         }
     }
 
-    if (Tasks == 0) Tasks = NUM_OF_THREADS;
-    encFile = MyDir + "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
 
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
+    if(Tasks==0) optimal(&Tasks, &NUM_OF_THREADS, fileSize);
+    encFile = MyDir + "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
 
     vector<long> timers(7, 0);
     vector<string> file(Tasks);

@@ -7,6 +7,7 @@
 #include "../utils/Node.h"
 #include "../utils/utils.cpp"
 #include <iostream>
+#include <thread>
 #include <fstream>
 #include <mutex>
 #include <map>
@@ -25,7 +26,7 @@
 
 using namespace std;
 using namespace ff;
-int NUM_OF_THREADS = 4;
+int NUM_OF_THREADS = thread::hardware_concurrency();
 
 int main(int argc, char* argv[]){
     /* -----------------        VARIABLES        ----------------- */

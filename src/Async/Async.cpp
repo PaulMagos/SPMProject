@@ -5,7 +5,6 @@
 #include <thread>
 #include <mutex>
 #include <future>
-#include <launch.h>
 #include <map>
 #include "../utils/Node.h"
 #include "../utils/utimer.cpp"
@@ -26,7 +25,7 @@ void writeToFile(vector<string>* bits, const string& encodedFile);
 void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<uintmax_t>* uAscii);
 void createOutput(vector<string>* file, const map<uintmax_t, string>& myMap);
 
-int NUM_OF_THREADS = 4;
+int NUM_OF_THREADS = thread::hardware_concurrency();
 vector<future<void>> futures;
 
 int main(int argc, char* argv[])

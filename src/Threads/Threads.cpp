@@ -25,7 +25,8 @@ void writeToFile(vector<string>* bits, const string& encodedFile);
 void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vector<uintmax_t>* uAscii);
 void createOutput(vector<string>* myFile, const map<uintmax_t, string>& myMap);
 
-int NUM_OF_THREADS = 4;
+int NUM_OF_THREADS = thread::hardware_concurrency();
+
 
 int main(int argc, char* argv[])
 {
