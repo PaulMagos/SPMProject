@@ -95,6 +95,26 @@ void toByte(uint8_t Start, uint8_t End, vector<string> bits, int pos, string* ou
     (*out)=output;
 }
 
+void toByte(uint8_t* Start, uint8_t* End, vector<string>* bits, int* pos, string* out){
+    string output;
+    uint8_t value = 0;
+    int i;
+    for (i = *Start; i < (bits)[*pos].size(); i+=8) {
+        for (uint8_t n = 0; n < 8; n++)
+            value = ((*bits)[*pos][i+n]=='1') | value << 1;
+        output.append((char*) (&value), 1);
+        value = 0;
+    }
+    if (*pos != (*bits).size()-1) {
+        for (uint32_t n = 0; n < 8-(*End); n++)
+            value = ((*bits)[*pos][i-8+n]=='1') | value << 1;
+        for (i = 0; i < (*End); i++)
+            value = ((*bits)[(*pos)+1][i]=='1') | value << 1;
+        output.append((char*) (&value), 1);
+    }
+    (*out)=output;
+}
+
 void writeFile(uintmax_t writePos, const string& output, ofstream* outputFile, mutex* fileMutex){
     {
         unique_lock<mutex> lock((*fileMutex));
@@ -134,14 +154,14 @@ void writeResults(const string& testName, uintmax_t fileSize, uintmax_t writePos
     csv.append(to_string(fileSize)).append(";");
     csv.append(to_string(writePos/8)).append(";");
     csv.append(to_string(numOfThreads)).append(";");
-    for (long timer : timers) csv.append(to_string(timer)).append(";");
+    for (long timer : timers) if(timer!=0) csv.append(to_string(timer)).append(";");
     ofstream file;
     // Open file, if empty add header else append
     file.open(csvFile, ios::out | ios::app);
     if (file.tellp() == 0) {
         file << "Test File;File Size;Encoding Size;Nw;" << (pool? "Tasks;":"");
-        if (all) file << (pool? "Start Pool;":"") << "Read;Tree;Encode;Write;" << (pool? "End Pool;":"");
-        file << "Total;" << endl;
+        if (all) file << (pool? "Start Pool;":"") << "Read;Count;Tree;Encode;Bytes;Write;" << (pool? "End Pool;":"");
+        file << "Total;Computation;" << endl;
     }
     else
         file.seekp(-1, ios_base::end);
@@ -163,5 +183,23 @@ void optimal(int* tasks, int* nw, uintmax_t fileSize){
         uintmax_t tmp = *tasks;
         *tasks = *nw;
         *nw = tmp;
+    }
+}
+
+void read(uintmax_t fileSize, ifstream* in, vector<string>* file, int nw){
+    uintmax_t chunk = fileSize / nw;
+    for(int i = 0; i < nw; i++) {
+        (*in).seekg(i*chunk, ios::beg);
+        chunk = (i == nw-1)? fileSize - i*chunk : chunk;
+        (*file)[i] = string(chunk, ' ');
+        (*in).read(&(*file)[i][0], chunk);
+    }
+}
+
+void write(const string& encFile, vector<string> file, vector<uintmax_t> writePositions, int nw){
+    ofstream outputFile(encFile, ios::binary | ios::out);
+    for (int i = 0; i < nw; i++) {
+        outputFile.seekp(writePositions[i]/8);
+        outputFile.write(file[i].c_str(), (file)[i].size());
     }
 }
