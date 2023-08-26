@@ -44,14 +44,6 @@ void calcChar(ifstream* myFile, vector<string>* file, int i, int nw, uintmax_t l
     }
 }
 
-void toBits(map<uintmax_t, string> myMap, string* line){
-    string bits;
-    for (char j : *line) {
-        bits.append(myMap[j]);
-    }
-    *line = bits;
-}
-
 void toBits(map<uintmax_t, string> myMap, vector<string>* line, int i){
     string bits;
     for (char j : (*line)[i]) {
@@ -82,4 +74,19 @@ void wWrite(uint8_t Start, uint8_t End, vector<string>* bits, int pos, uintmax_t
         (*outputFile).seekp(writePos/8);
         (*outputFile).write(output.c_str(), output.size());
     }
+}
+
+void appendToCsv(const string& filename, const string& data, bool pool = false){
+    ofstream file;
+    // Open file, if empty add header else append
+    file.open(filename, ios::out | ios::app);
+    if (file.tellp() == 0)
+        if (pool)
+            file << "Test File;File Size;Encoding Size;Nw;Tasks;Start Pool;Read;Tree;Encode;Write;End Pool;Total" << endl;
+        else
+            file << "Test File;File Size;Encoding Size;Nw;Read;Tree;Encode;Write;Total" << endl;
+    else
+        file.seekp(-1, ios_base::end);
+    file << data << endl;
+    file.close();
 }

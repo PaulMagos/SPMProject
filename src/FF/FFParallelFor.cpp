@@ -31,11 +31,12 @@ int main(int argc, char* argv[]){
     /* -----------------        VARIABLES        ----------------- */
     char option;
     vector<uintmax_t> ascii(ASCII_MAX, 0);
-    string inputFile, encodedFile, decodedFile;
+    string inputFile, encFileName, decodedFile, MyDir, csvFile, encFile;
     map<uintmax_t, string> myMap;
 
+    MyDir = "./data/EncodedFiles/FFParFor/";
     inputFile = "./data/TestFiles/";
-    encodedFile = "./data/EncodedFiles/FF/";
+    csvFile = "./data/CSV/FFParFor.csv";
 
     while((option = (char)getopt(argc, argv, OPT_LIST)) != -1){
         switch (option) {
@@ -43,7 +44,7 @@ int main(int argc, char* argv[]){
                 inputFile += optarg;
                 break;
             case 'p':
-                encodedFile += optarg;
+                encFileName += optarg;
                 break;
             case 't':
                 NUM_OF_THREADS = (int)atoi(optarg);
@@ -53,6 +54,7 @@ int main(int argc, char* argv[]){
                 return 1;
         }
     }
+    encFile = MyDir + encFileName;
 
     /* -----------------       MUTEXES      ----------------- */
     mutex readFileMutex;
@@ -64,39 +66,40 @@ int main(int argc, char* argv[]){
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     vector<string> file(NUM_OF_THREADS);
     uintmax_t fileSize = in.tellg();
+    uintmax_t writePos = 0;
+    vector<long> timers = vector<long>(5);
     {
-        utimer timer("Total");
+        utimer timer("Total", &timers[4]);
         /* Count frequencies */
         {
-            utimer timer2("Read Frequencies");
+            utimer timer2("Read Frequencies", &timers[0]);
             parallel_for(0, NUM_OF_THREADS, [&](const int i){
                 calcChar(&in, &file, i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii);
             }, NUM_OF_THREADS);
         }
         {
-            utimer timer3("Create Map");
+            utimer timer3("Create Map", &timers[1]);
             Node::createMap(Node::buildTree(ascii), &myMap);
         }
         {
-            utimer timer4("Encode");
+            utimer timer4("Encode", &timers[2]);
             parallel_for(0, NUM_OF_THREADS, [&](const int i){
-                toBits(myMap, &file[i]);
+                toBits(myMap, &file, i);
             }, NUM_OF_THREADS);
         }
         {
-            utimer timer5("Write File");
-            uintmax_t writePos = 0;
+            utimer timer5("Write File", &timers[3]);
             uint8_t Start, End = 0;
             vector<uint8_t> Starts(NUM_OF_THREADS), Ends(NUM_OF_THREADS);
             vector<uintmax_t> writePositions(NUM_OF_THREADS);
             mutex writefileMutex;
-            ofstream outputFile(encodedFile, ios::binary | ios::out);
+            ofstream outputFile(encFile, ios::binary | ios::out);
             for (int i = 0; i < NUM_OF_THREADS; ++i) {
                 Start = End;
                 Starts[i] = Start;
                 if(i==NUM_OF_THREADS-1)
                     file[i].append(string(8-((file[i].size() - Start)%8), '0'));
-                End = 8 - (file[i].size()-Start)%8;
+                End = (8 - (file[i].size()-Start)%8) % 8;
                 Ends[i] = End;
                 writePositions[i] = writePos;
                 writePos += (file[i].size()-Start)+End;
@@ -106,6 +109,14 @@ int main(int argc, char* argv[]){
             }, NUM_OF_THREADS);
         }
     }
+
+    string csv;
+    csv.append(encFileName).append(";");
+    csv.append(to_string(fileSize)).append(";");
+    csv.append(to_string(writePos/8)).append(";");
+    csv.append(to_string(NUM_OF_THREADS)).append(";");
+    for (long timer : timers) csv.append(to_string(timer)).append(";");
+    appendToCsv(csvFile, csv);
 
 
     return 0;

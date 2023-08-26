@@ -2,7 +2,7 @@
 // Created by Paul Magos on 19/08/23.
 //
 #include <ff/ff.hpp>
-#include "../utils/utimer_.cpp"
+#include "../utils/utimer.cpp"
 #include "../utils/Node.h"
 #include "../utils/utils.cpp"
 #include <iostream>
@@ -17,11 +17,12 @@
 // OPT LIST
 /*
  * h HELP
- * i input file path
- * p encoded file path
- * o decoded file path
+ * i input file name
+ * p encoded file name
+ * t number of threads
+ * c csv Timers file name
  */
-#define OPT_LIST "hi:p:t:"
+#define OPT_LIST "hi:p:t:c:"
 
 using namespace std;
 using namespace ff;
@@ -109,11 +110,12 @@ int main(int argc, char* argv[])
     /* -----------------        VARIABLES        ----------------- */
     char option;
     vector<uintmax_t> ascii(ASCII_MAX, 0);
-    string inputFile, encodedFile, decodedFile;
+    string inputFile, encFileName, decodedFile, MyDir, csvFile, encFile;
     map<uintmax_t, string> myMap;
 
+    MyDir = "./data/EncodedFiles/FFFarm/";
     inputFile = "./data/TestFiles/";
-    encodedFile = "./data/EncodedFiles/FF/";
+    csvFile = "./data/CSV/FFFarm.csv";
 
     while((option = (char)getopt(argc, argv, OPT_LIST)) != -1){
         switch (option) {
@@ -121,7 +123,7 @@ int main(int argc, char* argv[])
                 inputFile += optarg;
                 break;
             case 'p':
-                encodedFile += optarg;
+                encFileName += optarg;
                 break;
             case 't':
                 NUM_OF_THREADS = (int)atoi(optarg);
@@ -132,14 +134,14 @@ int main(int argc, char* argv[])
         }
     }
 
-
+    encFile = MyDir + encFileName;
 
     /* -----------------        FILE        ----------------- */
     /* Create input stream */
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     vector<string> file(NUM_OF_THREADS);
     uintmax_t fileSize = in.tellg();
-    ofstream outputFile(encodedFile, ios::binary | ios::out);
+    ofstream outputFile(encFile, ios::binary | ios::out);
     uintmax_t writePos = 0;
     uint8_t Start, End = 0;
 
@@ -156,63 +158,63 @@ int main(int argc, char* argv[])
     farm1.run();
     farm2.run();
 
-    map<string, long> timers = map<string, long>();
+    vector<long> timers = vector<long>(5);
 
     cout << "NUM OF THREADS: " << NUM_OF_THREADS << endl;
     cout << "Started Input FileSize: " << fileSize << endl;
     {
-        utimer timer("Total");
+        utimer timer("Total", &timers[4]);
         /* -----------------        FREQUENCIES        ----------------- */
         {
-            utimer timer2("Read Frequencies");
+            utimer timer2("Read", &timers[0]);
             for (int i = 0; i < NUM_OF_THREADS; i++) {
                 farm.offload(new Ttask::ffFreq(&in, &file, i, NUM_OF_THREADS, fileSize, &readFileMutex, &writeAsciiMutex, &ascii));
             }
             farm.offload(farm.EOS);
             farm.wait();
             farm.stop();
-//            timers.insert(pair<string, long>("Read Frequencies", timer2.get_time()));
         }
         /* -----------------        Tree        ----------------- */
         {
-            utimer timer3("Tree");
+            utimer timer3("Tree", &timers[1]);
             node.svc(new Ttask::ffMap(ascii, &myMap));
-            timers.insert(pair<string, long>("Tree", timer3.get_time()));
         }
 
         /* -----------------        Encode        ----------------- */
         {
-            utimer timer4("Encode");
+            utimer timer4("Encode", &timers[2]);
             for (int i = 0; i < NUM_OF_THREADS; i++) {
                 farm1.offload(new Ttask::ffBits(myMap, &file, i));
             }
             farm1.offload(farm.EOS);
             farm1.wait();
             farm1.stop();
-            timers.insert(pair<string, long>("Encode", timer4.get_time()));
         }
         /* -----------------        OUTPUT        ----------------- */
         {
-            utimer timer5("Write");
+            utimer timer5("Write", &timers[3]);
             for (int i = 0; i < NUM_OF_THREADS; i++) {
                 Start = End;
                 if (i == NUM_OF_THREADS - 1)
-                    file[i] += (string(8 - ((file[i].size() - Start) % 8), '0'));
-                End = 8 - (file[i].size() - Start) % 8;
+                    file[i] += (string(8 - ((file[i].size() - Start ) % 8), '0'));
+                End = (8 - ((file[i].size() - Start) % 8)) %8;
                 farm2.offload(new Ttask::ffWrite(Start, End, &file, i, writePos, &outputFile, &writefileMutex));
                 writePos += ((file[i].size() - Start) + End);
             }
             farm2.offload(farm2.EOS);
             farm2.wait();
             farm2.stop();
-            timers.insert(pair<string, long>("Write", timer5.get_time()));
         }
-        timers.insert(pair<string, long>("Total", timer.get_time()));
-    }
-    for (auto &timer : timers) {
-        cout << timer.first << " : " << timer.second << endl;
     }
     cout << "Finished Encoded FileSize: " << writePos/8 << endl;
+
+    string csv;
+    csv.append(encFileName).append(";");
+    csv.append(to_string(fileSize)).append(";");
+    csv.append(to_string(writePos/8)).append(";");
+    csv.append(to_string(NUM_OF_THREADS)).append(";");
+    for (long timer : timers) csv.append(to_string(timer)).append(";");
+    appendToCsv(csvFile, csv);
 
     return 0;
 }

@@ -1,4 +1,5 @@
 ./data/EncodedFiles/
 /data/TestFiles/
 /data/EncodedFiles/*/
+/data/CSV/*/
 /src/FF/fastflow/

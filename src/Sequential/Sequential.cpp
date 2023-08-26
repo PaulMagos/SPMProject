@@ -8,6 +8,7 @@
 #include <queue>
 #include "../utils/Node.h"
 #include "../utils/utimer.cpp"
+#include "../utils/utils.cpp"
 
 using namespace std;
 
@@ -30,10 +31,12 @@ int main(int argc, char* argv[])
 
     char option;
     vector<uintmax_t> ascii(ASCII_MAX, 0);
-    string inputFile, encodedFile, decodedFile;
+    string inputFile, encFileName, decodedFile, MyDir, csvFile, encFile;
+    map<uintmax_t, string> myMap;
 
     inputFile = "./data/TestFiles/";
-    encodedFile = "./data/EncodedFiles/Sequential/";
+    MyDir = "./data/EncodedFiles/Sequential/";
+    csvFile = "./data/CSV/Sequential.csv";
 
     while((option = (char)getopt(argc, argv, OPT_LIST)) != -1){
         switch (option) {
@@ -41,7 +44,7 @@ int main(int argc, char* argv[])
                 inputFile += optarg;
                 break;
             case 'p':
-                encodedFile += optarg;
+                encFileName += optarg;
                 break;
             default:
                 cout << "Invalid option" << endl;
@@ -49,30 +52,40 @@ int main(int argc, char* argv[])
         }
     }
 
+    encFile = MyDir + encFileName;
 
-    map<uintmax_t, string> myMap;
     ifstream myFile (inputFile, ifstream::binary | ifstream::ate);
     uintmax_t fileSize = myFile.tellg();
+    vector<long> timers(5,0);
     string file;
     {
-        utimer total("Total");
+        utimer total("Total", &timers[4]);
         {
-            utimer t("Calculate freq");
+            utimer t("Calculate freq", &timers[0]);
             readFrequencies(&ascii, myFile, &file, fileSize);
         }
         {
-            utimer t("CreateMap");
+            utimer t("CreateMap", &timers[1]);
             Node::createMap(Node::buildTree(ascii), &myMap);
         }
         {
-            utimer timer("Create output");
+            utimer timer("Create output", &timers[2]);
             createOutput(&file, myMap);
         }
         {
-            utimer timer("Write to file");
-            writeToFile(file, encodedFile);
+            utimer timer("Write to file", &timers[3]);
+            writeToFile(file, encFile);
         }
     }
+    string csv;
+    uintmax_t writePos = 0;
+    for (int i = 0; i < 1; i++) writePos += file.size();
+    csv.append(encFileName).append(";");
+    csv.append(to_string(fileSize)).append(";");
+    csv.append(to_string(writePos/8)).append(";");
+    csv.append(to_string(1)).append(";");
+    for (long timer : timers) csv.append(to_string(timer)).append(";");
+    appendToCsv(csvFile, csv);
     return 0;
 }
 
@@ -91,7 +104,7 @@ void createOutput(string* inputFile, map<uintmax_t, string> myMap) {
     for (auto &i : *inputFile) {
         (tmp).append(myMap[i]);
     }
-    (tmp).append(string(8 - (tmp).size() % 8, '0'));
+    (tmp).append(string(8 - ((tmp).size() % 8), '0'));
     swap(tmp, *inputFile);
 }
 
