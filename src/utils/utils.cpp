@@ -5,20 +5,11 @@
 #include <fstream>
 #include <mutex>
 #include <vector>
-#include <math.h>
+#include <cmath>
+#include <thread>
 #include <map>
 #define ASCII_MAX 256
 using namespace std;
-
-
-void readFile(ifstream* myFile, string* file, uintmax_t readPos, uintmax_t toRead, mutex* readFileMutex){
-    (*file) = string(toRead, ' ');
-    {
-        unique_lock<mutex> lock(*readFileMutex);
-        (*myFile).seekg(readPos);
-        (*myFile).read(&(*file)[0], toRead);
-    }
-}
 
 void countFrequency(string* file, vector<uintmax_t>* uAscii, mutex* writeAsciiMutex){
     vector<uintmax_t> ascii(ASCII_MAX, 0);
@@ -95,14 +86,6 @@ void toByte(uint8_t Start, uint8_t End, vector<string>* bits, int pos, string* o
     (*out)=output;
 }
 
-void writeFile(uintmax_t writePos, const string& output, ofstream* outputFile, mutex* fileMutex){
-    {
-        unique_lock<mutex> lock((*fileMutex));
-        (*outputFile).seekp(writePos/8);
-        (*outputFile).write((output).c_str(), (output).size());
-    }
-}
-
 void wWrite(uint8_t Start, uint8_t End, vector<string>* bits, int pos, uintmax_t writePos, ofstream* outputFile, mutex* fileMutex){
     string output;
     uint8_t value = 0;
@@ -128,24 +111,38 @@ void wWrite(uint8_t Start, uint8_t End, vector<string>* bits, int pos, uintmax_t
 }
 
 
-void writeResults(const string& testName, uintmax_t fileSize, uintmax_t writePos, int numOfThreads, const vector<long>& timers, const string& csvFile, bool pool= false, bool all=false,bool myImpl= false, int Tasks=0){
+void writeResults(const string& testName, uintmax_t fileSize, uintmax_t writePos, int numOfThreads, const vector<long>& timers, const string& csvFile, bool pool= false, bool all=false,bool myImpl= false, int Tasks=0, bool print=false){
     string csv;
     csv.append(testName).append(";");
+    if (print) cout << "Test File: " << testName << endl;
     csv.append(to_string(fileSize)).append(";");
+    if (print) cout << "File Size: " << fileSize << endl;
     csv.append(to_string(writePos/8)).append(";");
+    if (print) cout << "Encoding Size: " << writePos/8 << endl;
     csv.append(to_string(numOfThreads)).append(";");
-    if (pool) csv.append(to_string(Tasks)).append(";");
+    if (print) cout << "Nw: " << numOfThreads << endl;
+    if (pool) {
+        csv.append(to_string(Tasks)).append(";");
+        if (print) cout << "Tasks: " << Tasks << endl;
+    }
     for (long timer : timers) if(timer!=0) csv.append(to_string(timer)).append(";");
+    if(print){
+        cout << "Total: " << timers[timers.size()-2] << endl;
+        if(!myImpl)
+            cout << "Computation: " << timers[timers.size()-1] << endl;
+    }
     ofstream file;
     // Open file, if empty add header else append
     file.open(csvFile, ios::out | ios::app);
     if (file.tellp() == 0) {
-        file << "Test File;File Size;Encoding Size;Nw;" << (pool? "Tasks;":"");
-        if (all && !myImpl) file << (pool? "Start Pool;":"") << "Read;Count;Tree;Encode;Bytes;Write;" << (pool? "End Pool;":"");
-        else if (myImpl) file << (pool? "Start Pool;":"") << "Read&Count;Tree;Encode;Bytes&Write;" << (pool? "End Pool;":"");
-        file << "Total;";
-        if (!myImpl) file << "Computation;";
-        file << endl;
+        string header;
+        header.append("Test File;File Size;Encoding Size;Nw;").append((pool? "Tasks;":""));
+        if (all && !myImpl) header.append((pool? "Start Pool;":"")).append("Read;Count;Tree;Encode;Bytes;Write;").append(pool? "End Pool;":"");
+        else if (myImpl) header.append(pool? "Start Pool;":"").append("Read&Count;Tree;Encode;Bytes&Write;").append(pool? "End Pool;":"");
+        header.append("Total;");
+        if (!myImpl) header.append("Computation;");
+        header.push_back('\n');
+        file << header;
     }
     else
         file.seekp(-1, ios_base::end);
@@ -186,5 +183,25 @@ void write(const string& encFile, vector<string> file, vector<uintmax_t> writePo
     for (int i = 0; i < nw; i++) {
         outputFile.seekp(writePositions[i]/8);
         outputFile.write(file[i].c_str(), (file)[i].size());
+    }
+}
+
+/* https://stackoverflow.com/a/3984743 NOT MINE */
+static double ConvertSize(double bytes, char type)
+{
+    switch (type)
+    {
+        case 'M':
+            //convert to megabytes
+            return (bytes / pow(1024, 2));
+            break;
+        case 'G':
+            //convert to gigabytes
+            return (bytes / pow(1024, 3));
+            break;
+        default:
+            //default
+            return bytes;
+            break;
     }
 }

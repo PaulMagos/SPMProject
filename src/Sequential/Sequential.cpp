@@ -26,6 +26,12 @@ void createOutput(string* file, map<uintmax_t, string> myMap);
 void toBytes(string* bits);
 void write(const string& bits, ofstream* outputFile, uintmax_t writePos=0);
 
+#ifdef PRINT
+    bool print = true;
+#else
+    bool print = false;
+#endif
+
 int main(int argc, char* argv[])
 {
 
@@ -65,6 +71,8 @@ int main(int argc, char* argv[])
     uintmax_t fileSize = myFile.tellg();
     vector<long> timers(8,0);
     string file;
+    cout << "Starting Sequential Test on file: " << inputFile << " Size: ~"
+    << ConvertSize(fileSize, 'M') << "MB" << endl;
     {
         utimer total("Total", &timers[6]);
         {
@@ -112,7 +120,7 @@ int main(int argc, char* argv[])
     #else
         true
     #endif
-    );
+    , false, 0, print);
     return 0;
 }
 

@@ -23,6 +23,11 @@ using namespace std;
 
 int NUM_OF_THREADS = thread::hardware_concurrency();
 vector<future<void>> futures;
+#if defined(PRINT)
+    bool print = true;
+#else
+    bool print = false;
+#endif
 
 int main(int argc, char* argv[])
 {
@@ -68,7 +73,8 @@ int main(int argc, char* argv[])
 
 
     vector<long> timers(8, 0);
-
+    cout << "Starting Async Test with " << NUM_OF_THREADS << " futures, on file: "
+   << inputFile << " Size: ~" << ConvertSize(fileSize, 'M') << "MB" << endl;
     {
         utimer timer("Total", &timers[6]);
         {
@@ -158,7 +164,7 @@ int main(int argc, char* argv[])
     #else
     true
     #endif
-    );
+    , false, 0, print);
     return 0;
 }
 

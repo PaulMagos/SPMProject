@@ -26,6 +26,11 @@ void Frequencies(vector<string>* file, vector<uintmax_t>* uAscii);
 void createOutput(vector<string>* myFile, const map<uintmax_t, string>& myMap);
 
 int NUM_OF_THREADS = thread::hardware_concurrency();
+#ifdef PRINT
+    bool print = true;
+#else
+    bool print = false;
+#endif
 
 
 int main(int argc, char* argv[])
@@ -71,6 +76,8 @@ int main(int argc, char* argv[])
     vector<uintmax_t> writePositions(NUM_OF_THREADS);
     uintmax_t writePos = 0;
 
+    cout << "Starting Threads Test with " << NUM_OF_THREADS << " threads, on file: "
+         << inputFile << " Size: ~" << ConvertSize(fileSize, 'M') << "MB" << endl;
     {
         utimer timer("Total", &timers[6]);
         {
@@ -120,7 +127,7 @@ int main(int argc, char* argv[])
     #else
              true
     #endif
-    );
+    , false, 0, print);
     return 0;
 }
 

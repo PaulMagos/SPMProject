@@ -36,6 +36,18 @@ ThreadPool pool;
 int NUM_OF_THREADS = thread::hardware_concurrency();
 int Tasks = 0;
 
+#if defined(ALL)
+    bool myImpl = false;
+#else
+    bool myImpl = true;
+#endif
+#if defined(PRINT)
+    bool print = true;
+#else
+    bool print = false;
+#endif
+
+
 int main(int argc, char* argv[])
 {
 
@@ -87,6 +99,8 @@ int main(int argc, char* argv[])
     vector<string> file(Tasks);
     vector<uintmax_t> writePositions(Tasks);
     uintmax_t writePos = 0;
+    cout << "Starting ThreadPool Test with " << NUM_OF_THREADS << " threads, on file: "
+    << inputFile << " Size: ~" << ConvertSize(fileSize, 'M') << "MB" << endl;
     {
         utimer timer("Total", &timers[8]);
         {
@@ -173,14 +187,7 @@ int main(int argc, char* argv[])
     #else
         true
     #endif
-    ,
-    #if not defined(ALL)
-        true
-    #else
-        false
-    #endif
-    ,
-    Tasks);
+    , myImpl, Tasks, print);
     return 0;
 }
 
