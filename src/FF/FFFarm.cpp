@@ -2,7 +2,7 @@
 // Created by Paul Magos on 19/08/23.
 //
 #include <ff/ff.hpp>
-#include "../utils/utimer.cpp"
+#include "../utils/utimer_.cpp"
 #include "../utils/Node.h"
 #include "../utils/utils.cpp"
 #include <iostream>
@@ -156,6 +156,7 @@ int main(int argc, char* argv[])
     farm1.run();
     farm2.run();
 
+    map<string, long> timers = map<string, long>();
 
     cout << "NUM OF THREADS: " << NUM_OF_THREADS << endl;
     cout << "Started Input FileSize: " << fileSize << endl;
@@ -170,11 +171,13 @@ int main(int argc, char* argv[])
             farm.offload(farm.EOS);
             farm.wait();
             farm.stop();
+//            timers.insert(pair<string, long>("Read Frequencies", timer2.get_time()));
         }
         /* -----------------        Tree        ----------------- */
         {
             utimer timer3("Tree");
             node.svc(new Ttask::ffMap(ascii, &myMap));
+            timers.insert(pair<string, long>("Tree", timer3.get_time()));
         }
 
         /* -----------------        Encode        ----------------- */
@@ -186,6 +189,7 @@ int main(int argc, char* argv[])
             farm1.offload(farm.EOS);
             farm1.wait();
             farm1.stop();
+            timers.insert(pair<string, long>("Encode", timer4.get_time()));
         }
         /* -----------------        OUTPUT        ----------------- */
         {
@@ -201,7 +205,12 @@ int main(int argc, char* argv[])
             farm2.offload(farm2.EOS);
             farm2.wait();
             farm2.stop();
+            timers.insert(pair<string, long>("Write", timer5.get_time()));
         }
+        timers.insert(pair<string, long>("Total", timer.get_time()));
+    }
+    for (auto &timer : timers) {
+        cout << timer.first << " : " << timer.second << endl;
     }
     cout << "Finished Encoded FileSize: " << writePos/8 << endl;
 
