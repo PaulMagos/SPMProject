@@ -139,7 +139,7 @@ namespace utils{
         // Open file, if empty add header else append
         file.open("./data/Results.csv", ios::out | ios::app);
         if (file.tellp() == 0) {
-            file << "Kind;Test File;File Size;Encoding Size;Nw;" << (pool? "Tasks;":"") << "Total;Computation;\n";
+            file << "Kind;Test File;File Size;Encoding Size;Nw;Tasks;Total;Computation;\n";
         }
         else
             file.seekp(-1, ios_base::end);
