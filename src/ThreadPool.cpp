@@ -10,10 +10,10 @@
 #include <fstream>
 #include <thread>
 #include <map>
-#include "../utils/Node.h"
-#include "../utils/utimer.cpp"
-#include "../utils/Pool.cpp"
-#include "../utils/utils.cpp"
+#include "utils/Node.h"
+#include "utils/utimer.cpp"
+#include "utils/Pool.cpp"
+#include "utils/utils.cpp"
 
 using namespace std;
 
@@ -89,105 +89,56 @@ int main(int argc, char* argv[])
 
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
-    if(Tasks==0) optimal(&Tasks, &NUM_OF_THREADS, fileSize);
+    if(Tasks==0) utils::optimal(&Tasks, &NUM_OF_THREADS, fileSize);
     #if defined(ALL)
         encFile = MyDir + (ALL? "All_":"") + "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
     #else
         encFile = MyDir + "Best_" + "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
     #endif
-    vector<long> timers(10, 0);
+    vector<long> timers(4, 0);
     vector<string> file(Tasks);
     vector<uintmax_t> writePositions(Tasks);
     uintmax_t writePos = 0;
     cout << "Starting ThreadPool Test with " << NUM_OF_THREADS << " threads, on file: "
-    << inputFile << " Size: ~" << ConvertSize(fileSize, 'M') << "MB" << endl;
+    << inputFile << " Size: ~" << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
     {
-        utimer timer("Total", &timers[8]);
-        {
-            utimer t("Pool Start", &timers[0]);
-            pool.Start(NUM_OF_THREADS);
-        }
-        #if not defined(ALL)
+        utimer timer("Total", &timers[2]);
+        pool.Start(NUM_OF_THREADS);
+        #if not defined(MINE)
             {
-                utimer t("Count Frequencies", &timers[1]);
+                utimer t("Read File", &timers[0]);
                 readFrequencies(&in, fileSize, &file, &ascii);
             }
+            Node::createMap(Node::buildTree(ascii), &myMap);
+            createOutput(&file, myMap);
             {
-                utimer t("Create Map", &timers[2]);
-                Node::createMap(Node::buildTree(ascii), &myMap);
-            }
-            {
-                utimer t("Create Output", &timers[3]);
-                createOutput(&file, myMap);
-            }
-            {
-                utimer t("Write to File", &timers[4]);
+                utimer t("Write to File", &timers[1]);
                 writeToFile(&file, encFile);
             }
             // Encoded file dim
             for (int i = 0; i < Tasks; i++) writePos += file[i].size();
-        #elif defined(ALL) and ALL
+        #else
             {
-                utimer t("Read File", &timers[1]);
-                read(fileSize, &in, &file, Tasks);
-            }
-            {
-                utimer t("Count Frequencies", &timers[2]);
-                count(&ascii, &file);
-            }
-            {
-                utimer t("Create Map", &timers[3]);
-                Node::createMap(Node::buildTree(ascii), &myMap);
-            }
-            {
-                utimer t("Create Output", &timers[4]);
-                createOutput(&file, myMap);
-            }
-            {
-                utimer t("To bytes", &timers[5]);
-                tobytes(&file, &writePositions, &writePos);
-            }
-            {
-                utimer t("Write to File", &timers[6]);
-                write(encFile, file, writePositions, Tasks);
-            }
-        #elif defined(ALL) and not ALL
-            {
-                utimer t("Read File", &timers[1]);
-                read(fileSize, &in, &file, Tasks);
+                utimer t("Read File", &timers[0]);
+                utils::read(fileSize, &in, &file, Tasks);
             }
             count(&ascii, &file);
             Node::createMap(Node::buildTree(ascii), &myMap);
             createOutput(&file, myMap);
             tobytes(&file, &writePositions, &writePos);
             {
-                utimer t("Write to File", &timers[6]);
-                write(encFile, file, writePositions, Tasks);
+                utimer t("Write to File", &timers[1]);
+                utils::write(encFile, file, writePositions, Tasks);
             }
         #endif
-        {
-            utimer t("Pool Stop", &timers[7]);
-            pool.Stop();
-        }
+        pool.Stop();
     }
 
-    #if defined(ALL)
-        timers[9] = timers[8] - timers[1] - timers[6];
-        #if not ALL
-            timers[0] = 0;
-            timers[1] = 0;
-            timers[6] = 0;
-            timers[7] = 0;
-        #endif
-    #endif
+    timers[3] = timers[2] - timers[0] - timers[1];
+    timers[0] = 0;
+    timers[1] = 0;
 
-    writeResults(encFileName, fileSize, writePos, NUM_OF_THREADS, timers, csvFile, true,
-    #if defined(ALL)
-        ALL
-    #else
-        true
-    #endif
-    , myImpl, Tasks, print);
+    utils::writeResults("ThreadPool", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, true, myImpl, Tasks, print);
     return 0;
 }
 
@@ -204,7 +155,7 @@ void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vect
                               len,
                               capture2 = &readFileMutex,
                               capture4 = &writeAsciiMutex,
-                              capture5 = &(*uAscii)] { calcChar(capture0, capture1, i, nw, len, capture2, capture4, capture5); });
+                              capture5 = &(*uAscii)] { utils::calcChar(capture0, capture1, i, nw, len, capture2, capture4, capture5); });
     }
     while (pool.busy());
 }
@@ -214,14 +165,14 @@ void count(vector<uintmax_t>* ascii, vector<string>* file){
     for (int i = 0; i < Tasks; i++){
         pool.QueueJob([capture0 = &(*file)[i],
                               capture2 = &(*ascii),
-                              &writeAsciiMutex] { countFrequency(capture0, capture2, &writeAsciiMutex); });
+                              &writeAsciiMutex] { utils::countFrequency(capture0, capture2, &writeAsciiMutex); });
     }
     while (pool.busy());
 }
 
 void createOutput(vector<string>* file, const map<uintmax_t,string>& myMap) {
     for (int i = 0; i < Tasks; i++)
-        pool.QueueJob([&myMap, capture0 = &(*file), i] { toBits(myMap, capture0, i); });
+        pool.QueueJob([&myMap, capture0 = &(*file), i] { utils::toBits(myMap, capture0, i); });
     while (pool.busy());
 }
 
@@ -238,7 +189,7 @@ void writeToFile(vector<string>* bits, const string& encodedFile){
             (*bits)[i] += (string(8-((*bits)[i].size()-Start)%8, '0'));
         End = (8 - ((*bits)[i].size()-Start)%8)%8;
         pool.QueueJob([Start, End, capture0 = &(*bits), i, writePos, capture1 = &outputFile, capture2 = &fileMutex]{
-            wWrite(Start, End, capture0, i, writePos, capture1, capture2);
+            utils::wWrite(Start, End, capture0, i, writePos, capture1, capture2);
         });
         writePos += (((*bits)[i].size()-Start)+End);
     }
@@ -256,7 +207,7 @@ void tobytes(vector<string>* bits, vector<uintmax_t>* writePositions, uintmax_t*
             (*bits)[i] += (string(8-((*bits)[i].size()-Start)%8, '0'));
         (*writePositions)[i] = (*writePos);
         pool.QueueJob([Start, End, bits1 = &(*bits), i, capture1 = &output[i]]{
-            toByte(Start, End, bits1, i, capture1);
+            utils::toByte(Start, End, bits1, i, capture1);
         });
         (*writePos) += (((*bits)[i].size()-Start)+End);
     }

@@ -4,9 +4,9 @@
 #include <getopt.h>
 #include <fstream>
 #include <map>
-#include "../utils/Node.h"
-#include "../utils/utimer.cpp"
-#include "../utils/utils.cpp"
+#include "utils/Node.h"
+#include "utils/utimer.cpp"
+#include "utils/utils.cpp"
 
 using namespace std;
 
@@ -42,13 +42,6 @@ int main(int argc, char* argv[])
 
     inputFile = "./data/TestFiles/";
     MyDir = "./data/EncodedFiles/Sequential/";
-    csvFile = "./data/CSV/Sequential";
-    #if not defined(ALL)
-        csvFile += "All";
-    #elif defined(ALL)
-        csvFile += (ALL? "All":"");
-    #endif
-    csvFile += ".csv";
 
     while((option = (char)getopt(argc, argv, OPT_LIST)) != -1){
         switch (option) {
@@ -69,58 +62,31 @@ int main(int argc, char* argv[])
     ifstream myFile (inputFile, ifstream::binary | ifstream::ate);
     ofstream outputFile(encFile, ios::binary | ios::out);
     uintmax_t fileSize = myFile.tellg();
-    vector<long> timers(8,0);
+    vector<long> timers(4,0);
     string file;
     cout << "Starting Sequential Test on file: " << inputFile << " Size: ~"
-    << ConvertSize(fileSize, 'M') << "MB" << endl;
+    << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
     {
-        utimer total("Total", &timers[6]);
+        utimer total("Total", &timers[2]);
         {
             utimer t("Read File", &timers[0]);
             readFile(myFile, &file, fileSize);
         }
-        #if not defined(ALL) or ALL
-            {
-                utimer t("Count", &timers[1]);
-                count(&ascii, file);
-            }
-            {
-                utimer t("CreateMap", &timers[2]);
-                Node::createMap(Node::buildTree(ascii), &myMap);
-            }
-            {
-                utimer timer("Create output", &timers[3]);
-                createOutput(&file, myMap);
-            }
-            {
-                utimer timer("To bytes", &timers[4]);
-                toBytes(&file);
-            }
-        #elif defined(ALL) and not ALL
-            count(&ascii, file);
-            Node::createMap(Node::buildTree(ascii), &myMap);
-            createOutput(&file, myMap);
-            toBytes(&file);
-        #endif
+        count(&ascii, file);
+        Node::createMap(Node::buildTree(ascii), &myMap);
+        createOutput(&file, myMap);
+        toBytes(&file);
         {
-            utimer timer("Write to file", &timers[5]);
+            utimer timer("Write to file", &timers[1]);
             write(file, &outputFile);
         }
     }
     // Time without read and write
-    timers[7] = timers[6] - timers[0] - timers[5];
-    #if defined(ALL) and not ALL
-            timers[0] = 0;
-            timers[5] = 0;
-    #endif
+    timers[3] = timers[2] - timers[0] - timers[1];
+    timers[0] = 0;
+    timers[1] = 0;
     uintmax_t writePos = file.size()*8;
-    writeResults(encFileName, fileSize, writePos, 1, timers, csvFile, false,
-    #if defined(ALL)
-        ALL
-    #else
-        true
-    #endif
-    , false, 0, print);
+    utils::writeResults("Sequential", encFileName, fileSize, writePos, 1, timers, false, false, 0, print);
     return 0;
 }
 

@@ -6,9 +6,9 @@
 #include <thread>
 #include <map>
 #include <mutex>
-#include "../utils/Node.h"
-#include "../utils/utimer.cpp"
-#include "../utils/utils.cpp"
+#include "utils/Node.h"
+#include "utils/utimer.cpp"
+#include "utils/utils.cpp"
 
 using namespace std;
 
@@ -42,13 +42,6 @@ int main(int argc, char* argv[])
 
     MyDir = "./data/EncodedFiles/Threads/";
     inputFile = "./data/TestFiles/";
-    csvFile = "./data/CSV/Threads";
-    #if not defined(ALL)
-        csvFile += "All";
-    #elif defined(ALL)
-        csvFile += (ALL? "All":"");
-    #endif
-    csvFile += ".csv";
 
     while((option = (char)getopt(argc, argv, OPT_LIST)) != -1){
         switch (option) {
@@ -71,63 +64,35 @@ int main(int argc, char* argv[])
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
 
-    vector<long> timers(8, 0);
+    vector<long> timers(4, 0);
     vector<string> file(NUM_OF_THREADS);
     vector<uintmax_t> writePositions(NUM_OF_THREADS);
     uintmax_t writePos = 0;
 
     cout << "Starting Threads Test with " << NUM_OF_THREADS << " threads, on file: "
-         << inputFile << " Size: ~" << ConvertSize(fileSize, 'M') << "MB" << endl;
+         << inputFile << " Size: ~" << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
     {
-        utimer timer("Total", &timers[6]);
+        utimer timer("Total", &timers[2]);
         {
             utimer t("Read File", &timers[0]);
-            read(fileSize, &in, &file, NUM_OF_THREADS);
+            utils::read(fileSize, &in, &file, NUM_OF_THREADS);
         }
-        #if not defined(ALL) or ALL
+        Frequencies(&file, &ascii);
+        Node::createMap(Node::buildTree(ascii), &myMap);
+        createOutput(&file, myMap);
+        tobytes(&file, &writePositions, &writePos);
         {
-            utimer t("Count Frequencies", &timers[1]);
-            Frequencies(&file, &ascii);
-        }
-        {
-            utimer t("Create Map", &timers[2]);
-            Node::createMap(Node::buildTree(ascii), &myMap);
-        }
-        {
-            utimer t("Create output", &timers[3]);
-            createOutput(&file, myMap);
-        }
-        {
-            utimer t("Write to file", &timers[4]);
-            tobytes(&file, &writePositions, &writePos);
-        }
-        #elif defined(ALL) and not ALL
-            Frequencies(&file, &ascii);
-            Node::createMap(Node::buildTree(ascii), &myMap);
-            createOutput(&file, myMap);
-            tobytes(&file, &writePositions, &writePos);
-        #endif
-
-        {
-            utimer t("Write To File", &timers[5]);
-            write(encFile, file, writePositions, NUM_OF_THREADS);
+            utimer t("Write To File", &timers[1]);
+            utils::write(encFile, file, writePositions, NUM_OF_THREADS);
         }
     }
 
-    timers[7] = timers[6] - timers[0] - timers[5];
     // Time without read and write
-    #if defined(ALL) and not ALL
-        timers[0] = 0;
-        timers[5] = 0;
-    #endif
+    timers[3] = timers[2] - timers[0] - timers[1];
+    timers[0] = 0;
+    timers[1] = 0;
 
-    writeResults(encFileName, fileSize, writePos, 1, timers, csvFile, false,
-    #if defined(ALL)
-                ALL
-    #else
-             true
-    #endif
-    , false, 0, print);
+    utils::writeResults("Threads", encFileName, fileSize, writePos, 1, timers, false, false, 0, print);
     return 0;
 }
 
@@ -136,7 +101,7 @@ void Frequencies(vector<string>* file, vector<uintmax_t>* uAscii){
     mutex writeAsciiMutex;
     vector<std::thread> threads;
     for (int i = 0; i < NUM_OF_THREADS; i++){
-        threads.emplace_back( countFrequency, &(*file)[i], &(*uAscii), &writeAsciiMutex);
+        threads.emplace_back( utils::countFrequency, &(*file)[i], &(*uAscii), &writeAsciiMutex);
     }
     for (int i = 0; i < NUM_OF_THREADS; i++) {
         threads[i].join();
@@ -147,7 +112,7 @@ void createOutput(vector<string>* file, const map<uintmax_t, string>& myMap) {
     vector<std::thread> threads;
     threads.reserve(NUM_OF_THREADS);
     for (int i = 0; i < NUM_OF_THREADS; i++)
-        threads.emplace_back([myMap, capture0 = &(*file), i] { return toBits(myMap, capture0, i); });
+        threads.emplace_back([myMap, capture0 = &(*file), i] { return utils::toBits(myMap, capture0, i); });
     for (int i = 0; i < NUM_OF_THREADS; i++) {
             threads[i].join();
     }
@@ -163,7 +128,7 @@ void tobytes(vector<string>* bits, vector<uintmax_t>* writePositions, uintmax_t*
         if (i == NUM_OF_THREADS-1)
             (*bits)[i] += (string(8-((*bits)[i].size()-Start)%8, '0'));
         (*writePositions)[i] = (*writePos);
-        threads.emplace_back(toByte, Start, End, &(*bits), i, &output[i]);
+        threads.emplace_back(utils::toByte, Start, End, &(*bits), i, &output[i]);
         (*writePos) += (((*bits)[i].size()-Start)+End);
     }
     for (int i = 0; i < NUM_OF_THREADS; i++) {
