@@ -1,7 +1,5 @@
 #include <ff/ff.hpp>
-#include <ff/parallel_for.hpp>
 #include <ff/farm.hpp>
-#include <ff/map.hpp>
 #include <iostream>
 #include <thread>
 #include <fstream>
@@ -13,6 +11,7 @@
 #include "utils/utimer.cpp"
 #include "utils/utils.cpp"
 #include "utils/Node.h"
+#include "utils/ffstructures.h"
 
 
 #define ASCII_MAX 256
@@ -28,7 +27,6 @@
 using namespace std;
 using namespace ff;
 int NUM_OF_THREADS = thread::hardware_concurrency();
-int Tasks = NUM_OF_THREADS;
 #ifdef PRINT
 bool print = true;
 #else
@@ -40,178 +38,7 @@ string csvPath = "./data/ResultsNO3.csv";
 string csvPath = "./data/Results.csv";
 #endif
 
-
-struct ff_task_t {
-    ff_task_t(vector<string>* file, vector<uintmax_t>* ascii, map<uintmax_t, string>* myMap, uintmax_t* writePos,
-              vector<uintmax_t>* writePositions, vector<uintmax_t>* Starts, vector<uintmax_t>* Ends, int i) :
-            file(file), ascii(ascii), myMap(myMap), writePos(writePos),
-    writePositions(writePositions), Starts(Starts), Ends(Ends), index(i) {
-        line = &file->operator[](i);
-        localAscii = vector<uintmax_t>(ASCII_MAX, 0);
-    }
-
-    int index;
-    string* line;
-    vector<string>* file;
-    vector<uintmax_t>* ascii;
-    vector<uintmax_t> localAscii;
-    map<uintmax_t, string>* myMap;
-    uintmax_t* writePos;
-    vector<uintmax_t>* writePositions;
-    vector<uintmax_t>* Starts;
-    vector<uintmax_t>* Ends;
-};
-
-namespace QUEUE {
-    queue<ff_task_t*> tasks;
-    mutex tasksMutex;
-    condition_variable tasksCondVar;
-
-    void enque(ff_task_t* task) {
-        {
-            unique_lock<mutex> lock(tasksMutex);
-            tasks.push(task);
-        }
-        tasksCondVar.notify_one();
-    }
-
-    ff_task_t* deque() {
-        ff_task_t* task;
-        {
-            unique_lock<mutex> lock(tasksMutex);
-            tasksCondVar.wait(lock, []{ return !tasks.empty(); });
-            task = tasks.front();
-            tasks.pop();
-        }
-        return task;
-    }
-
-    bool empty(){
-        return tasks.empty();
-    }
-}
-
-struct Worker : ff_Map<ff_task_t> {
-    ff_task_t *svc(ff_task_t *) override {
-        ff_task_t* inA = QUEUE::deque();
-        // this is the parallel_for provided by the ff_Map class
-        for (int i = 0; i < (*inA->line).size(); i++)
-            inA->localAscii[(*inA->line)[i]]++;
-        ff_send_out(inA);
-        return EOS;
-    }
-};
-
-struct collectCounts: ff_Map<ff_task_t> {
-    ff_task_t *svc(ff_task_t *inA) override {
-        ff_task_t &A = *inA;
-        {
-            for (int i = 0; i < ASCII_MAX; i++)
-                A.ascii->operator[](i) += A.localAscii[i];
-        }
-        ff_send_out(inA);
-        return GO_ON;
-    }
-};
-
-struct mapWorker : ff_Map<ff_task_t> {
-    int numoftasks = 0;
-    vector<ff_task_t*> tasks = vector<ff_task_t*>(Tasks);
-    ff_task_t *svc(ff_task_t *inA) override {
-        // If farm finished then create map
-        ff_task_t &A = *inA;
-        numoftasks++;
-        tasks[inA->index] = inA;
-        if (numoftasks == Tasks) {
-            Node::createMap(Node::buildTree(*A.ascii), inA->myMap);
-            for (int i = 0; i < Tasks; i++) {
-                ff_send_out(tasks[i]);
-            }
-        }
-        return GO_ON;
-    }
-};
-
-struct mapApply : ff_Map<ff_task_t> {
-    ff_task_t *svc(ff_task_t *inA) override {
-        ff_task_t *A = inA;
-        string tmp;
-        for (int i = 0; i < (A->line)->size(); i++) {
-            tmp += A->myMap->operator[]((*A->line)[i]);
-        }
-        *(A->line) = tmp;
-        ff_send_out(A);
-        return EOS;
-    }
-};
-
-struct calcIndices : ff_Map<ff_task_t>{
-    int numOfTasks = 0;
-    vector<ff_task_t*> tasks = vector<ff_task_t*>(Tasks);
-    ff_task_t *svc(ff_task_t *inA) override {
-        numOfTasks++;
-        tasks[inA->index] = inA;
-        if (numOfTasks == Tasks) {
-            vector<string> *file = tasks[0]->file;
-            vector<uintmax_t> *writePositions = tasks[0]->writePositions;
-            vector<uintmax_t> *Starts = tasks[0]->Starts;
-            vector<uintmax_t> *Ends = tasks[0]->Ends;
-            uintmax_t *writePos = tasks[0]->writePos;
-            int Start, End = 0;
-            for (int i = 0; i<Tasks; i++){
-                Start = End;
-                (*Starts)[i] = Start;
-                if(i==Tasks-1)
-                    (*file)[i].append(string(8-(((*file)[i].size() - Start)%8), '0'));
-                End = (8 - ((*file)[i].size()-Start)%8) % 8;
-                (*Ends)[i] = End;
-                (*writePositions)[i] = *writePos;
-                *writePos += ((*file)[i].size()-Start)+End;
-            }
-            for (int i = 0; i < Tasks; i++) {
-                ff_send_out(tasks[i]);
-            }
-        }
-        return GO_ON;
-    }
-};
-
-struct applyBit : ff_Map<ff_task_t> {
-    int numoftasks = 0;
-    vector<ff_task_t*> tasks = vector<ff_task_t*>(Tasks);
-    ff_task_t *svc(ff_task_t *inA) override {
-        numoftasks++;
-        tasks[inA->index] = inA;
-        if (numoftasks == Tasks) {
-            vector<string> out = vector<string>(Tasks);
-            vector<string> *file = tasks[0]->file;
-            vector<uintmax_t> *writePositions = tasks[0]->writePositions;
-            vector<uintmax_t> *Starts = tasks[0]->Starts;
-            vector<uintmax_t> *Ends = tasks[0]->Ends;
-            FF_PARFOR_BEGIN(apply, i, 0, Tasks, 1, 1, Tasks){
-                uintmax_t j = 0;
-                string tmp;
-                uint8_t byte = 0;
-                for (j = (*Starts)[i]; j < (*file)[i].size(); j+=8) {
-                    for (uintmax_t k = 0; k < 8; k++) {
-                        byte = ((*file)[i][j+k]=='1') | byte << 1 ;
-                    }
-                    tmp.append((char*) (&byte), 1);
-                    byte = 0;
-                }
-                if(i!=Tasks-1){
-                    for (int k = 0; k < 8 - (*Ends)[i]; k++) byte = ((*file)[i][j-8+k]=='1') | byte << 1;
-                    for (int k = 0; k < (*Ends)[i]; k++) byte = ((*file)[i+1][k]=='1') | byte << 1;
-                    tmp.append((char*) (&byte), 1);
-                }
-                out[i] = tmp;
-            }FF_PARFOR_END(apply);
-            (*file) = out;
-            return EOS;
-        }
-        return GO_ON;
-    }
-};
+int Tasks = NUM_OF_THREADS;
 
 int main(int argc, char* argv[]) {
     /* -----------------        VARIABLES        ----------------- */
@@ -270,28 +97,45 @@ int main(int argc, char* argv[]) {
             utimer readTime("Read file", &timers[0]);
             utils::read(fileSize, &in, &file, Tasks);
         }
+        vector<ff_task_t*> tasks = vector<ff_task_t*>(Tasks);
         for (size_t i = 0; i < Tasks; i++) {
-            QUEUE::enque(new ff_task_t(&file, &ascii, &myMap, &writePos, &writePositions, &Starts, &Ends, i));
+            tasks[i] = new ff_task_t(&file[i], i, Tasks);
         }
+        /* -----------------        FAST FLOW EMITTER FOR 1st FARM        ----------------- */
+        Emitter emitter(NUM_OF_THREADS, &tasks);
+
+        /* -----------------        FAST FLOW 1st FARM                    ----------------- */
+        // Create farm with 1 emitter and NUM_OF_THREADS workers
+        // This one will count the occurrences of each character
         ff_Farm<ff_task_t, ff_task_t> counts( []() {
             std::vector<std::unique_ptr<ff_node> > W;
             for(size_t i=0;i<NUM_OF_THREADS;++i) {
                 W.push_back(make_unique<Worker>());
             }
             return W;
-        }() );
-        collectCounts collectCounts;
-        mapWorker createMap;
-        ff_Farm<ff_task_t, ff_task_t> mapApp( []() {
+        }(), emitter );
+        /* -----------------        FAST FLOW COLLECTOR                   ----------------- */
+        // This one will collect the counts from the workers and add them to the ascii vector
+        collectCounts collectCounts(&ascii, &file);
+        /* -----------------        FAST FLOW MAP Creation (Huffman Tree) ----------------- */
+        mapWorker createMap(&myMap, NUM_OF_THREADS, &file);
+        /* -----------------        FAST FLOW MAP Application (FARM)      ----------------- */
+        ff_Farm<ff_task_t, ff_task_t> mapApp( [&file]() {
             std::vector<std::unique_ptr<ff_node> > W;
             for(size_t i=0;i<NUM_OF_THREADS;++i) {
-                W.push_back(make_unique<mapApply>());
+                W.push_back(make_unique<mapApply>(&file));
             }
             return W;
         }() );
-        calcIndices calcIndices;
-        applyBit appBit;
-        ff_Pipe<> pipe(counts, collectCounts, createMap, mapApp, calcIndices, appBit);
+        /* -----------------        FAST FLOW CALCULATE INDICES           ----------------- */
+        // This one calculates the positions of the vector of strings from which each thread will read
+        calcIndices calcIdx(&writePositions, &Starts, &Ends, &writePos, &file);
+        /* -----------------        FAST FLOW APPLY BIT                   ----------------- */
+        // This one will apply transform the string of bits into bytes
+        applyBit appBit(NUM_OF_THREADS);
+        /* -----------------        FAST FLOW PIPELINE                    ----------------- */
+        // This one is the complete pipeline of all the previous nodes
+        ff_Pipe<> pipe(counts, collectCounts, createMap, mapApp, calcIdx, appBit);
         pipe.run_and_wait_end();
         {
             utimer writeTime("Write file", &timers[1]);
@@ -303,6 +147,6 @@ int main(int argc, char* argv[]) {
     timers[3] = timers[2] - timers[0] - timers[1];
     timers[0] = 0;
     timers[1] = 0;
-    utils::writeResults("FastFlow", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, false, false, Tasks, print, csvPath);
+    utils::writeResults("FastFlow", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, true, false, Tasks, print, csvPath);
     return 0;
 }
