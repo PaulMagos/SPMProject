@@ -112,7 +112,7 @@ namespace utils{
     }
 
 
-    void writeResults(const string& kind, const string& testName, uintmax_t fileSize, uintmax_t writePos, int numOfThreads, const vector<long>& timers, bool pool= false, bool myImpl= false, int Tasks=0, bool print=false){
+    void writeResults(const string& kind, const string& testName, uintmax_t fileSize, uintmax_t writePos, int numOfThreads, const vector<long>& timers, bool pool= false, bool myImpl= false, int Tasks=0, bool print=false, const string& CSVPath=""){
         string csv;
         csv.append(kind).append(";");
         csv.append(testName).append(";");
@@ -137,7 +137,7 @@ namespace utils{
         }
         ofstream file;
         // Open file, if empty add header else append
-        file.open("./data/Results.csv", ios::out | ios::app);
+        file.open(CSVPath, ios::out | ios::app);
         if (file.tellp() == 0) {
             file << "Kind;Test File;File Size;Encoding Size;Nw;Tasks;Total;Computation;\n";
         }

@@ -32,6 +32,11 @@ bool print = true;
 #else
 bool print = false;
 #endif
+#if defined(NO3)
+string csvPath = "./data/ResultsNO3.csv";
+#else
+string csvPath = "./data/Results.csv";
+#endif
 
 
 struct ff_task_t {
@@ -182,11 +187,11 @@ struct applyBit : ff_Map<ff_task_t> {
             vector<uintmax_t> *Starts = tasks[0]->Starts;
             vector<uintmax_t> *Ends = tasks[0]->Ends;
             FF_PARFOR_BEGIN(apply, i, 0, NUM_OF_THREADS, 1, 1, NUM_OF_THREADS){
-                int j = 0;
+                uintmax_t j = 0;
                 string tmp;
                 uint8_t byte = 0;
                 for (j = (*Starts)[i]; j < (*file)[i].size(); j+=8) {
-                    for (int k = 0; k < 8; k++) {
+                    for (uintmax_t k = 0; k < 8; k++) {
                         byte = ((*file)[i][j+k]=='1') | byte << 1 ;
                     }
                     tmp.append((char*) (&byte), 1);
@@ -210,7 +215,7 @@ int main(int argc, char* argv[]) {
     /* -----------------        VARIABLES        ----------------- */
     char option;
     vector<uintmax_t> ascii(ASCII_MAX, 0);
-    string inputFile, encFileName, decodedFile, MyDir, csvFile, encFile;
+    string inputFile, encFileName, decodedFile, MyDir, encFile;
     map<uintmax_t, string> myMap;
 
     MyDir = "./data/EncodedFiles/FastFlow/";
@@ -232,11 +237,11 @@ int main(int argc, char* argv[]) {
                 return 1;
         }
     }
-    #if not defined(ALL)
-        encFile = MyDir + encFileName;
-    #else
-        encFile = MyDir + "All" + encFileName;
+    encFile = MyDir;
+    #ifdef NO3
+        encFile += "NO3";
     #endif
+    encFile += encFileName;
     /* -----------------       MUTEXES      ----------------- */
     mutex readFileMutex;
     mutex writeAsciiMutex;
@@ -293,6 +298,6 @@ int main(int argc, char* argv[]) {
     timers[3] = timers[2] - timers[0] - timers[1];
     timers[0] = 0;
     timers[1] = 0;
-    utils::writeResults("FastFlow", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, false, false, 0, print);
+    utils::writeResults("FastFlow", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, false, false, 0, print, csvPath);
     return 0;
 }

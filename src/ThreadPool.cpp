@@ -36,36 +36,40 @@ ThreadPool pool;
 int NUM_OF_THREADS = thread::hardware_concurrency();
 int Tasks = 0;
 
-#if defined(ALL)
-    bool myImpl = false;
-#else
+#if defined(MINE)
     bool myImpl = true;
+#else
+    bool myImpl = false;
 #endif
 #if defined(PRINT)
     bool print = true;
 #else
     bool print = false;
 #endif
+#if defined(NO3)
+    string csvPath = "./data/ResultsNO3.csv";
+#else
+    string csvPath = "./data/Results.csv";
+#endif
+
 
 
 int main(int argc, char* argv[])
 {
 
+    /* -----------------        VARIABLES                     ----------------- */
     char option;
-    vector<uintmax_t> ascii(ASCII_MAX, 0);
-    string inputFile, encFileName, decodedFile, MyDir, csvFile, encFile;
+    uintmax_t writePos = 0;
+    vector<long> timers(4, 0);
     map<uintmax_t, string> myMap;
+    vector<uintmax_t> ascii(ASCII_MAX, 0);
+    string inputFile, encFileName, decodedFile, MyDir, encFile;
 
+    /* -----------------        PATHS                         ----------------- */
     MyDir = "./data/EncodedFiles/ThreadPool/";
     inputFile = "./data/TestFiles/";
-    csvFile = "./data/CSV/ThreadPool";
-    #if not defined(ALL)
-        csvFile += "Best";
-    #elif defined(ALL)
-        csvFile += (ALL? "All":"");
-    #endif
-    csvFile += ".csv";
 
+    /* -----------------        OPTIONS PARSING               ----------------- */
     while((option = (char)getopt(argc, argv, OPT_LIST)) != -1){
         switch (option) {
             case 'i':
@@ -87,30 +91,61 @@ int main(int argc, char* argv[])
     }
 
 
+    /* -----------------         READ FILE                    ----------------- */
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
+
+    /* -----------------         NUMBER OF T and Tasks        ----------------- */
     if(Tasks==0) utils::optimal(&Tasks, &NUM_OF_THREADS, fileSize);
-    #if defined(ALL)
-        encFile = MyDir + (ALL? "All_":"") + "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
-    #else
-        encFile = MyDir + "Best_" + "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
+
+    /* -----------------         ENCODED FILE PATH            ----------------- */
+    encFile = MyDir;
+    #ifdef NO3
+        encFile += "NO3";
     #endif
-    vector<long> timers(4, 0);
+    #if defined(MINE)
+        encFile += "Best_";
+    #endif
+    encFile += "t_" + to_string(NUM_OF_THREADS) + "_n_" + to_string(Tasks) + "_" + encFileName;
+
+
+    /* -----------------              VARIABLES               ----------------- */
     vector<string> file(Tasks);
     vector<uintmax_t> writePositions(Tasks);
-    uintmax_t writePos = 0;
+
+    /* -----------------              PRINT INFO              ----------------- */
     cout << "Starting ThreadPool Test with " << NUM_OF_THREADS << " threads, on file: "
     << inputFile << " Size: ~" << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
+
+    /* -----------------                ENCODE FILE           ----------------- */
     {
         utimer timer("Total", &timers[2]);
+        // Start thread pool
         pool.Start(NUM_OF_THREADS);
         #if not defined(MINE)
+            /* READ AND WRITE ARE NOT CONSIDERED AS A UNIQUE OPERATION SINCE WE
+             *
+             * CONSIDER THEM AS A PART OF THE PROCESS
+             *
+             * WE READ ONE STRING AND IMMEDIATELY PASS IT FOR COUNTING
+             *
+             * WHILE ANOTHER THREAD IS READING A NEW STRING
+             *
+             * ** SIMILAR FOR THE WRITE OPERATION **
+             */
+            /* -----------------        READ AND COUNT        ----------------- */
             {
                 utimer t("Read File", &timers[0]);
                 readFrequencies(&in, fileSize, &file, &ascii);
             }
+
+            /* -----------------        CREATE MAP            ----------------- */
             Node::createMap(Node::buildTree(ascii), &myMap);
+
+            /* -----------------        CREATE OUTPUT         ----------------- */
             createOutput(&file, myMap);
+
+            /* -----------------        TO BYTES              ----------------- */
             {
                 utimer t("Write to File", &timers[1]);
                 writeToFile(&file, encFile);
@@ -118,27 +153,41 @@ int main(int argc, char* argv[])
             // Encoded file dim
             for (int i = 0; i < Tasks; i++) writePos += file[i].size();
         #else
+            /* -----------------        READ FILE             ----------------- */
             {
                 utimer t("Read File", &timers[0]);
                 utils::read(fileSize, &in, &file, Tasks);
             }
+
+            /* -----------------        COUNT                 ----------------- */
             count(&ascii, &file);
+
+            /* -----------------        CREATE MAP            ----------------- */
             Node::createMap(Node::buildTree(ascii), &myMap);
+
+            /* -----------------        CREATE OUTPUT         ----------------- */
             createOutput(&file, myMap);
+
+            /* -----------------        TO BYTES              ----------------- */
             tobytes(&file, &writePositions, &writePos);
+
+            /* -----------------        WRITE TO FILE         ----------------- */
             {
                 utimer t("Write to File", &timers[1]);
                 utils::write(encFile, file, writePositions, Tasks);
             }
         #endif
+        // Stop thread pool
         pool.Stop();
     }
 
+    /* -----------------      TIME WITHOUT READ AND WRITE     ----------------- */
     timers[3] = timers[2] - timers[0] - timers[1];
     timers[0] = 0;
     timers[1] = 0;
 
-    utils::writeResults("ThreadPool", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, true, myImpl, Tasks, print);
+    /* -----------------            WRITE RESULTS             ----------------- */
+    utils::writeResults("ThreadPool", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, true, myImpl, Tasks, print, csvPath);
     return 0;
 }
 

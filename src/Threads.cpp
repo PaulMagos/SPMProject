@@ -31,13 +31,17 @@ int NUM_OF_THREADS = thread::hardware_concurrency();
 #else
     bool print = false;
 #endif
-
+#if defined(NO3)
+    string csvPath = "./data/ResultsNO3.csv";
+    #else
+    string csvPath = "./data/Results.csv";
+#endif
 
 int main(int argc, char* argv[])
 {
     char option;
     vector<uintmax_t> ascii(ASCII_MAX, 0);
-    string inputFile, encFileName, decodedFile, MyDir, csvFile, encFile;
+    string inputFile, encFileName, decodedFile, MyDir, encFile;
     map<uintmax_t, string> myMap;
 
     MyDir = "./data/EncodedFiles/Threads/";
@@ -60,7 +64,11 @@ int main(int argc, char* argv[])
         }
     }
 
-    encFile = MyDir + encFileName;
+    encFile = MyDir;
+    #ifdef NO3
+        encFile += "NO3";
+    #endif
+    encFile += encFileName;
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
 
@@ -92,7 +100,7 @@ int main(int argc, char* argv[])
     timers[0] = 0;
     timers[1] = 0;
 
-    utils::writeResults("Threads", encFileName, fileSize, writePos, 1, timers, false, false, 0, print);
+    utils::writeResults("Threads", encFileName, fileSize, writePos, 1, timers, false, false, 0, print, csvPath);
     return 0;
 }
 
