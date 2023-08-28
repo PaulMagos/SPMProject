@@ -8,10 +8,6 @@ CFLAGS = -std=c++17
 ifeq ($(PRINT), true)
 	CFLAGS += $(PRINTF_FLAG)
 endif
-# IF FLAG IS GREATER THAN 1, THREAD_FLAG IS ADDED TO CFLAGS
-ifneq ($(THREADS), 1)
-	CFLAGS += $(THREAD_FLAG)
-endif
 # Comment/Uncomment for not using/using default FF mapping
 #CFLAGS += -DNO_DEFAULT_MAPPING
 CFLAGS_O3 += -O3 $(CFLAGS)
@@ -44,7 +40,7 @@ $(BIN)/%.o: $(SRCS)%.cpp
 $(BIN)/NO3%.o: $(SRCS)%.cpp
 	$(CC) -DNO3 $(CFLAGS) -c $< -o $@
 
-all: genFiles $(TARGET) $(TARGETNO3)
+all: genFiles $(TARGET)
 	make clean
 
 toCLEAN = $(wildcard *.o) 
@@ -63,13 +59,12 @@ cleanall:
 genFiles:
 	./src/utils/files.sh
 
-testsbig = 4 5 6 7 8
-testsmall = 1 2 3
+testsbig = 5 6 7 8
+testsmall = 1 2 3 4
 
 testsmall: all
 	@for test in $(testsmall); do \
 		make test$$test; \
-		make NO3test$$test; \
 	done
 
 testsbig:
@@ -81,30 +76,24 @@ tests: testsmall testsbig
 
 testsNames = test1 test2 test3 test4 test5 test6 test7 test8
 
-$(testsNames):
-	@for target in $(TARGET); do \
-		$$target -i $@.txt -p $@.bin; \
-		echo "DONE $@.txt $$target"; \
-	done
+SEQ=$(BIN)Sequential -i $@.txt -p enc$@.bin
+TP=$(BIN)ThreadPool -i $@.txt -p enc$@.bin
+FF=$(BIN)FastFlow -i $@.txt -p enc$@.bin
+# IF FLAG IS GREATER THAN 1, THREAD_FLAG IS ADDED TO CFLAGS
+ifneq ($(THREADS), 1)
+	TP += $(THREAD_FLAG)
+	FF += $(THREAD_FLAG)
+endif
 
-NO3test1:
-	@for target in $(TARGETNO3); do \
-		$$target -i test1.txt -p encodec1.bin; \
-		echo "DONE test1.txt $$target"; \
-	done
 
-NO3test2:
-	@for target in $(TARGETNO3); do \
-		$$target -i test2.txt -p encodec2.bin; \
-		echo "DONE test2.txt $$target"; \
-	done
-
-NO3test3:
-	@for target in $(TARGETNO3); do \
-		$$target -i test3.txt -p encodec3.bin; \
-		echo "DONE test3.txt $$target"; \
-	done
-
+$(testsNames): 
+	@$(SEQ)
+	@echo "Done $@.txt Sequential"
+	@$(FF)
+	@echo "Done $@.txt FastFlow"
+	@$(TP)
+	@echo "Done $@.txt ThreadPool"
+	
 HELP:
 	@echo "Usage: make [OPTION]... [TARGET]..."
 	@echo "OPTION:"

@@ -1,0 +1,1 @@
+nohup bash -c "time ./run.sh" > logfile.log 2>&1

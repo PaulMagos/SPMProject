@@ -9,6 +9,7 @@
 #include <vector>
 #include <map>
 #include "./Node.h"
+// #include "./utimer.cpp"
 #include <ff/ff.hpp>
 #include <ff/parallel_for.hpp>
 #include <ff/farm.hpp>
@@ -79,7 +80,6 @@ struct Emitter: ff_monode_t<ff_task_t> {
 
 struct Worker : ff_node_t<ff_task_t> {
     ff_task_t *svc(ff_task_t *inA) override {
-//        ff_task_t* inA = QUEUE::deque();
         // this is the parallel_for provided by the ff_Map class
         for (int i = 0; i < (*inA->file).size(); i++)
             inA->localAscii[(*inA->file)[i]]++;
@@ -93,10 +93,8 @@ struct collectCounts: ff_node_t<ff_task_t> {
     ff_task_t *svc(ff_task_t *inA) override {
         ff_task_t &A = *inA;
         nt++;
-        {
-            for (int i = 0; i < ASCII_MAX; i++)
-                this->ascii->operator[](i) += A.localAscii[i];
-        }
+        for (int i = 0; i < ASCII_MAX; i++)
+            this->ascii->operator[](i) += A.localAscii[i];
         string* line = A.file;
         if(nt == A.Tasks) ff_send_out(new ff_map_t(ascii, A.Tasks, file));
         return GO_ON;
@@ -125,8 +123,9 @@ struct mapApply : ff_node_t<ff_apply_map_t> {
     mapApply(vector<string>* file): file(file){};
     ff_apply_map_t *svc(ff_apply_map_t *inA) override {
         string tmp;
-        for (int i = 0; i < (*inA->line).size(); i++) {
-            tmp += (*inA->myMap)[(*inA->line)[i]];
+        string line = *inA->line;
+        for (int i = 0; i < line.size(); i++) {
+            tmp.append((*inA->myMap)[(line)[i]]);
         }
         (*inA->line) = tmp;
         ff_send_out(inA);
@@ -151,10 +150,8 @@ struct calcIndices : ff_node_t<ff_apply_map_t>{
                 (*Ends)[i] = End;
                 (*writePositions)[i] = *writePos;
                 *writePos += ((*file)[i].size()-Start)+End;
-                for (int i = 0; i < ntasks; i++) {
-                    ff_send_out(new ff_bit_byte_t(file, ntasks, writePositions, Starts, Ends, writePos));
-                }
             }
+            ff_send_out(new ff_bit_byte_t(file, ntasks, writePositions, Starts, Ends, writePos));
         }
         return GO_ON;
     }
