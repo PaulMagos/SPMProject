@@ -92,7 +92,7 @@ Nunc eu quam posuere nisi auctor lobortis. Vestibulum vestibulum est vel purus f
 
 file="$TESTSDIR/test1.txt"
 # Create the test files
-for i in {1..8}
+for i in `seq 1 8`
 do
     # If file not present, create the test  
     if [ ! -f "$TESTSDIR/test$i.txt" ]; 

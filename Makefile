@@ -7,7 +7,7 @@ ifeq ($(PRINT), true)
 	CFLAGS += $(PRINTF_FLAG)
 endif
 # Comment/Uncomment for not using/using default FF mapping
-CFLAGS += -DNO_DEFAULT_MAPPING
+#CFLAGS += -DNO_DEFAULT_MAPPING
 CFLAGS_O3 += -O3 $(CFLAGS)
 
 # Path: src/

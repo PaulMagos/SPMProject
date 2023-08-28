@@ -8,6 +8,7 @@
 #include <map>
 #include <utility>
 #include <vector>
+#include <condition_variable>
 #include <getopt.h>
 #include "utils/utimer.cpp"
 #include "utils/utils.cpp"
