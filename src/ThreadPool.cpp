@@ -114,7 +114,7 @@ int main(int argc, char* argv[])
     vector<uintmax_t> writePositions(Tasks);
 
     /* -----------------              PRINT INFO              ----------------- */
-    cout << "Starting ThreadPool Test with " << NUM_OF_THREADS << " threads, on file: "
+    if(print) cout << "Starting ThreadPool Test with " << NUM_OF_THREADS << " threads, on file: "
     << inputFile << " Size: ~" << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
 
     /* -----------------                ENCODE FILE           ----------------- */
@@ -187,7 +187,9 @@ int main(int argc, char* argv[])
     timers[1] = 0;
 
     /* -----------------            WRITE RESULTS             ----------------- */
-    utils::writeResults("ThreadPool", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, true, myImpl, Tasks, print, csvPath);
+    string kind= "ThreadPool";
+    if(myImpl) kind += "M";
+    utils::writeResults(kind, encFileName, fileSize, writePos, NUM_OF_THREADS, timers, true, myImpl, Tasks, print, csvPath);
     return 0;
 }
 

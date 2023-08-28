@@ -1,10 +1,15 @@
 CC = g++
 INCLUDES = -I /usr/local/include/ff
-PRINTFLAG = -DPRINT
-CFLAGSBASE += -std=c++17 
-CFLAGS += -O3 $(CFLAGSBASE)
-CFLAGSFF += -DNO_DEFAULT_MAPPING -pthread $(CFLAGS) $(INCLUDES)
-CFLAGSFFBASE += -DNO_DEFAULT_MAPPING -pthread $(CFLAGSBASE) $(INCLUDES)
+PRINTF_FLAG = -DPRINT
+CFLAGS = -std=c++17 -pthread
+# IF PRINT FLAG IS SET, PRINTF_FLAG IS ADDED TO CFLAGS
+ifeq ($(PRINT), true)
+	CFLAGS += $(PRINTF_FLAG)
+endif
+# Comment/Uncomment for not using/using default FF mapping
+CFLAGS += -DNO_DEFAULT_MAPPING
+CFLAGS_O3 += -O3 $(CFLAGS)
+
 
 # Path: src/
 BIN = ./
@@ -22,23 +27,17 @@ TARGETNO3 =  $(BIN)NO3FastFlow $(BIN)NO3Threads $(BIN)NO3ThreadPool $(BIN)NO3Thr
 OBJS = $(patsubst $(SRCS)/%.c, $(BIN)/%.o, $(BIN))
 NO3OBJS = $(patsubst $(SRCS)/%.c, $(BIN)/NO3%.o, $(SRCS))
 
-FastFlow.o: $(SRCS)FastFlow.cpp
-	$(CC) $(CFLAGSFF) -c $< -o $@
-
-NO3FastFlow.o: $(SRCS)FastFlow.cpp
-	$(CC) -DNO3 $(CFLAGSFFBASE) -c $< -o $@
-
 ThreadPoolM.o: $(SRCS)ThreadPool.cpp
-	$(CC) -DMINE $(CFLAGS) -c $< -o $@
+	$(CC) -DMINE $(CFLAGS_O3) -c $< -o $@
 
 NO3ThreadPoolM.o: $(SRCS)ThreadPool.cpp
-	$(CC) -DMINE -DNO3 $(CFLAGSBASE) -c $< -o $@
+	$(CC) -DMINE -DNO3 $(CFLAGS)  -c $< -o $@
 
 $(BIN)/%.o: $(SRCS)%.cpp
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS_O3) $(INCLUDES)  -c $< -o $@
 
 $(BIN)/NO3%.o: $(SRCS)%.cpp
-	$(CC) -DNO3 $(CFLAGSBASE) -c $< -o $@
+	$(CC) -DNO3 $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 all:  $(TARGET) $(TARGETNO3)
 	make clean
@@ -51,7 +50,30 @@ clean:
 cleanall:
 	rm -f $(TARGET) $(TARGETNO3)
 
-# Path: data/
-DATA = $(wildcard data/testFiles/*.txt)
-dataName = $(notdir $(DATA))
+testsbig = 5 6 7 8
+testsmall = 1 2 3 4
 
+testsmall:
+	@for test in $(testsmall); do \
+		make test$$test; \
+	done
+
+testsbig:
+	@for test in $(testsbig); do \
+		make test$$test; \
+	done
+
+tests: testsmall testsbig
+
+testsNames = test1 test2 test3 test4 test5 test6 test7 test8
+
+$(testsNames): $(TARGET) $(TARGETNO3)
+	@for target in $(TARGET); do \
+		$$target -i $@.txt -p $@.bin; \
+		echo "DONE $@.txt $$target"; \
+	done
+	@for target in $(TARGETNO3); do \
+		$$target -i $@.txt -p $@.bin; \
+		echo "DONE $@.txt $$target"; \
+	done
+	make clean

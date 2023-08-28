@@ -64,6 +64,7 @@ int main(int argc, char* argv[])
         }
     }
 
+
     encFile = MyDir;
     #ifdef NO3
         encFile += "NO3";
@@ -71,13 +72,15 @@ int main(int argc, char* argv[])
     encFile += encFileName;
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
+    int tasks =0;
+    utils::optimal(&tasks, &NUM_OF_THREADS, fileSize);
 
     vector<long> timers(4, 0);
     vector<string> file(NUM_OF_THREADS);
     vector<uintmax_t> writePositions(NUM_OF_THREADS);
     uintmax_t writePos = 0;
 
-    cout << "Starting Threads Test with " << NUM_OF_THREADS << " threads, on file: "
+    if(print) cout << "Starting Threads Test with " << NUM_OF_THREADS << " threads, on file: "
          << inputFile << " Size: ~" << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
     {
         utimer timer("Total", &timers[2]);
@@ -100,7 +103,7 @@ int main(int argc, char* argv[])
     timers[0] = 0;
     timers[1] = 0;
 
-    utils::writeResults("Threads", encFileName, fileSize, writePos, 1, timers, false, false, 0, print, csvPath);
+    utils::writeResults("Threads", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, false, false, 0, print, csvPath);
     return 0;
 }
 

@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
     uintmax_t fileSize = myFile.tellg();
     vector<long> timers(4,0);
     string file;
-    cout << "Starting Sequential Test on file: " << inputFile << " Size: ~"
+    if(print) cout << "Starting Sequential Test on file: " << inputFile << " Size: ~"
     << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
     {
         utimer total("Total", &timers[2]);

@@ -69,13 +69,16 @@ int main(int argc, char* argv[])
 
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
+    int tasks =0;
+    utils::optimal(&tasks, &NUM_OF_THREADS, fileSize);
+
     vector<string> file(NUM_OF_THREADS);
     vector<uintmax_t> writePositions = vector<uintmax_t>(NUM_OF_THREADS);
     uintmax_t writePos = 0;
 
 
     vector<long> timers(4, 0);
-    cout << "Starting Async Test with " << NUM_OF_THREADS << " futures, on file: "
+    if(print) cout << "Starting Async Test with " << NUM_OF_THREADS << " futures, on file: "
    << inputFile << " Size: ~" << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
     {
         utimer timer("Total", &timers[2]);

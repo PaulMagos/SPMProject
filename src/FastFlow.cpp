@@ -251,6 +251,9 @@ int main(int argc, char* argv[]) {
     /* Create input stream */
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
+    int tasks =0;
+    utils::optimal(&tasks, &NUM_OF_THREADS, fileSize);
+
     uintmax_t writePos = 0;
     vector<string> file(NUM_OF_THREADS);
     vector<uintmax_t> writePositions(NUM_OF_THREADS, 0);
@@ -258,7 +261,8 @@ int main(int argc, char* argv[]) {
     vector<uintmax_t> Ends(NUM_OF_THREADS, 0);
     vector<long> timers = vector<long>(4, 0);
 
-
+    if(print) cout << "Starting FastFlow Test with " << NUM_OF_THREADS << " threads, on file: "
+                   << inputFile << " Size: ~" << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
     {
         utimer total("Total time", &timers[2]);
         {
