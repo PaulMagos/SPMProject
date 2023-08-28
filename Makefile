@@ -10,7 +10,6 @@ endif
 CFLAGS += -DNO_DEFAULT_MAPPING
 CFLAGS_O3 += -O3 $(CFLAGS)
 
-
 # Path: src/
 BIN = ./
 SRCS = ./src/
@@ -39,7 +38,7 @@ $(BIN)/%.o: $(SRCS)%.cpp
 $(BIN)/NO3%.o: $(SRCS)%.cpp
 	$(CC) -DNO3 $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-all:  $(TARGET) $(TARGETNO3)
+all: genFiles $(TARGET) $(TARGETNO3)
 	make clean
 
 toCLEAN = $(wildcard *.o) 
@@ -48,7 +47,10 @@ clean:
 	rm -f $(toCLEAN)
 
 cleanall:
-	rm -f $(TARGET) $(TARGETNO3)
+	rm -rf $(TARGET) $(TARGETNO3) ./data/
+
+genFiles:
+	./src/utils/files.sh
 
 testsbig = 5 6 7 8
 testsmall = 1 2 3 4
@@ -67,7 +69,7 @@ tests: testsmall testsbig
 
 testsNames = test1 test2 test3 test4 test5 test6 test7 test8
 
-$(testsNames): $(TARGET) $(TARGETNO3)
+$(testsNames): all
 	@for target in $(TARGET); do \
 		$$target -i $@.txt -p $@.bin; \
 		echo "DONE $@.txt $$target"; \
