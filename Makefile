@@ -1,10 +1,16 @@
 CC = g++
+THREADS = 1
 INCLUDES = -I /usr/local/include/ff
 PRINTF_FLAG = -DPRINT
-CFLAGS = -std=c++17 -pthread
+THREAD_FLAG = -t $(THREADS)
+CFLAGS = -std=c++17
 # IF PRINT FLAG IS SET, PRINTF_FLAG IS ADDED TO CFLAGS
 ifeq ($(PRINT), true)
 	CFLAGS += $(PRINTF_FLAG)
+endif
+# IF FLAG IS GREATER THAN 1, THREAD_FLAG IS ADDED TO CFLAGS
+ifneq ($(THREADS), 1)
+	CFLAGS += $(THREAD_FLAG)
 endif
 # Comment/Uncomment for not using/using default FF mapping
 #CFLAGS += -DNO_DEFAULT_MAPPING
@@ -19,24 +25,24 @@ CPPFILES = $(wildcard $(SRCS)/*.cpp)
 .SUFFIXES:
 .SUFFIXES: .cpp .o
 
-TARGET =  $(BIN)FastFlow $(BIN)Threads $(BIN)ThreadPool $(BIN)ThreadPoolM $(BIN)Async $(BIN)Sequential
-TARGETNO3 =  $(BIN)NO3FastFlow $(BIN)NO3Threads $(BIN)NO3ThreadPool $(BIN)NO3ThreadPoolM $(BIN)NO3Async $(BIN)NO3Sequential
+TARGET =  $(BIN)FastFlow $(BIN)ThreadPool $(BIN)Sequential
+TARGETNO3 =  $(BIN)NO3FastFlow $(BIN)NO3ThreadPool $(BIN)NO3Sequential
 
 # PRINT OBJS
 OBJS = $(patsubst $(SRCS)/%.c, $(BIN)/%.o, $(BIN))
 NO3OBJS = $(patsubst $(SRCS)/%.c, $(BIN)/NO3%.o, $(SRCS))
 
-ThreadPoolM.o: $(SRCS)ThreadPool.cpp
-	$(CC) -DMINE $(CFLAGS_O3) -c $< -o $@
+$(BIN)FastFlow.o: $(SRCS)FastFlow.cpp
+	$(CC) -pthread $(CFLAGS_O3) $(INCLUDES) -c $< -o $@
 
-NO3ThreadPoolM.o: $(SRCS)ThreadPool.cpp
-	$(CC) -DMINE -DNO3 $(CFLAGS)  -c $< -o $@
+$(BIN)NO3FastFlow.o: $(SRCS)FastFlow.cpp
+	$(CC) -pthread $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 $(BIN)/%.o: $(SRCS)%.cpp
-	$(CC) $(CFLAGS_O3) $(INCLUDES)  -c $< -o $@
+	$(CC) $(CFLAGS_O3) -c $< -o $@
 
 $(BIN)/NO3%.o: $(SRCS)%.cpp
-	$(CC) -DNO3 $(CFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) -DNO3 $(CFLAGS) -c $< -o $@
 
 all: genFiles $(TARGET) $(TARGETNO3)
 	make clean
@@ -57,8 +63,8 @@ cleanall:
 genFiles:
 	./src/utils/files.sh
 
-testsbig = 5 6 7 8
-testsmall = 1 2 3 4
+testsbig = 4 5 6 7 8
+testsmall = 1 2 3
 
 testsmall: all
 	@for test in $(testsmall); do \
@@ -97,12 +103,6 @@ NO3test3:
 	@for target in $(TARGETNO3); do \
 		$$target -i test3.txt -p encodec3.bin; \
 		echo "DONE test3.txt $$target"; \
-	done
-
-NO3test4:
-	@for target in $(TARGETNO3); do \
-		$$target -i test4.txt -p encodec4.bin; \
-		echo "DONE test4.txt $$target"; \
 	done
 
 HELP:

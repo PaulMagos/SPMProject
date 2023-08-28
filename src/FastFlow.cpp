@@ -28,6 +28,7 @@
 using namespace std;
 using namespace ff;
 int NUM_OF_THREADS = thread::hardware_concurrency();
+int Tasks = NUM_OF_THREADS;
 #ifdef PRINT
 bool print = true;
 #else
@@ -115,15 +116,15 @@ struct collectCounts: ff_Map<ff_task_t> {
 
 struct mapWorker : ff_Map<ff_task_t> {
     int numoftasks = 0;
-    vector<ff_task_t*> tasks = vector<ff_task_t*>(NUM_OF_THREADS);
+    vector<ff_task_t*> tasks = vector<ff_task_t*>(Tasks);
     ff_task_t *svc(ff_task_t *inA) override {
         // If farm finished then create map
         ff_task_t &A = *inA;
         numoftasks++;
         tasks[inA->index] = inA;
-        if (numoftasks == NUM_OF_THREADS) {
+        if (numoftasks == Tasks) {
             Node::createMap(Node::buildTree(*A.ascii), inA->myMap);
-            for (int i = 0; i < NUM_OF_THREADS; i++) {
+            for (int i = 0; i < Tasks; i++) {
                 ff_send_out(tasks[i]);
             }
         }
@@ -146,28 +147,28 @@ struct mapApply : ff_Map<ff_task_t> {
 
 struct calcIndices : ff_Map<ff_task_t>{
     int numOfTasks = 0;
-    vector<ff_task_t*> tasks = vector<ff_task_t*>(NUM_OF_THREADS);
+    vector<ff_task_t*> tasks = vector<ff_task_t*>(Tasks);
     ff_task_t *svc(ff_task_t *inA) override {
         numOfTasks++;
         tasks[inA->index] = inA;
-        if (numOfTasks == NUM_OF_THREADS) {
+        if (numOfTasks == Tasks) {
             vector<string> *file = tasks[0]->file;
             vector<uintmax_t> *writePositions = tasks[0]->writePositions;
             vector<uintmax_t> *Starts = tasks[0]->Starts;
             vector<uintmax_t> *Ends = tasks[0]->Ends;
             uintmax_t *writePos = tasks[0]->writePos;
             int Start, End = 0;
-            for (int i = 0; i<NUM_OF_THREADS; i++){
+            for (int i = 0; i<Tasks; i++){
                 Start = End;
                 (*Starts)[i] = Start;
-                if(i==NUM_OF_THREADS-1)
+                if(i==Tasks-1)
                     (*file)[i].append(string(8-(((*file)[i].size() - Start)%8), '0'));
                 End = (8 - ((*file)[i].size()-Start)%8) % 8;
                 (*Ends)[i] = End;
                 (*writePositions)[i] = *writePos;
                 *writePos += ((*file)[i].size()-Start)+End;
             }
-            for (int i = 0; i < NUM_OF_THREADS; i++) {
+            for (int i = 0; i < Tasks; i++) {
                 ff_send_out(tasks[i]);
             }
         }
@@ -177,17 +178,17 @@ struct calcIndices : ff_Map<ff_task_t>{
 
 struct applyBit : ff_Map<ff_task_t> {
     int numoftasks = 0;
-    vector<ff_task_t*> tasks = vector<ff_task_t*>(NUM_OF_THREADS);
+    vector<ff_task_t*> tasks = vector<ff_task_t*>(Tasks);
     ff_task_t *svc(ff_task_t *inA) override {
         numoftasks++;
         tasks[inA->index] = inA;
-        if (numoftasks == NUM_OF_THREADS) {
-            vector<string> out = vector<string>(NUM_OF_THREADS);
+        if (numoftasks == Tasks) {
+            vector<string> out = vector<string>(Tasks);
             vector<string> *file = tasks[0]->file;
             vector<uintmax_t> *writePositions = tasks[0]->writePositions;
             vector<uintmax_t> *Starts = tasks[0]->Starts;
             vector<uintmax_t> *Ends = tasks[0]->Ends;
-            FF_PARFOR_BEGIN(apply, i, 0, NUM_OF_THREADS, 1, 1, NUM_OF_THREADS){
+            FF_PARFOR_BEGIN(apply, i, 0, Tasks, 1, 1, Tasks){
                 uintmax_t j = 0;
                 string tmp;
                 uint8_t byte = 0;
@@ -198,7 +199,7 @@ struct applyBit : ff_Map<ff_task_t> {
                     tmp.append((char*) (&byte), 1);
                     byte = 0;
                 }
-                if(i!=NUM_OF_THREADS-1){
+                if(i!=Tasks-1){
                     for (int k = 0; k < 8 - (*Ends)[i]; k++) byte = ((*file)[i][j-8+k]=='1') | byte << 1;
                     for (int k = 0; k < (*Ends)[i]; k++) byte = ((*file)[i+1][k]=='1') | byte << 1;
                     tmp.append((char*) (&byte), 1);
@@ -252,14 +253,13 @@ int main(int argc, char* argv[]) {
     /* Create input stream */
     ifstream in(inputFile, ifstream::ate | ifstream::binary);
     uintmax_t fileSize = in.tellg();
-    int tasks =0;
-    utils::optimal(&tasks, &NUM_OF_THREADS, fileSize);
+    utils::optimal(&Tasks, &NUM_OF_THREADS, fileSize);
 
     uintmax_t writePos = 0;
-    vector<string> file(NUM_OF_THREADS);
-    vector<uintmax_t> writePositions(NUM_OF_THREADS, 0);
-    vector<uintmax_t> Starts(NUM_OF_THREADS, 0);
-    vector<uintmax_t> Ends(NUM_OF_THREADS, 0);
+    vector<string> file(Tasks);
+    vector<uintmax_t> writePositions(Tasks, 0);
+    vector<uintmax_t> Starts(Tasks, 0);
+    vector<uintmax_t> Ends(Tasks, 0);
     vector<long> timers = vector<long>(4, 0);
 
     if(print) cout << "Starting FastFlow Test with " << NUM_OF_THREADS << " threads, on file: "
@@ -268,9 +268,9 @@ int main(int argc, char* argv[]) {
         utimer total("Total time", &timers[2]);
         {
             utimer readTime("Read file", &timers[0]);
-            utils::read(fileSize, &in, &file, NUM_OF_THREADS);
+            utils::read(fileSize, &in, &file, Tasks);
         }
-        for (size_t i = 0; i < NUM_OF_THREADS; i++) {
+        for (size_t i = 0; i < Tasks; i++) {
             QUEUE::enque(new ff_task_t(&file, &ascii, &myMap, &writePos, &writePositions, &Starts, &Ends, i));
         }
         ff_Farm<ff_task_t, ff_task_t> counts( []() {
@@ -295,7 +295,7 @@ int main(int argc, char* argv[]) {
         pipe.run_and_wait_end();
         {
             utimer writeTime("Write file", &timers[1]);
-            utils::write(encFile, file, writePositions, NUM_OF_THREADS);
+            utils::write(encFile, file, writePositions, Tasks);
         }
     }
 
@@ -303,6 +303,6 @@ int main(int argc, char* argv[]) {
     timers[3] = timers[2] - timers[0] - timers[1];
     timers[0] = 0;
     timers[1] = 0;
-    utils::writeResults("FastFlow", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, false, false, 0, print, csvPath);
+    utils::writeResults("FastFlow", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, false, false, Tasks, print, csvPath);
     return 0;
 }
