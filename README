@@ -1,1 +1,1 @@
-nohup bash -c "time ./run.sh" > logfile.log 2>&1
+ nohup ./run.sh > myoutput.txt >2&1  
