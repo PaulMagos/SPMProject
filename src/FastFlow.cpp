@@ -114,11 +114,15 @@ int main(int argc, char* argv[]) {
             }
             return W;
         }(), emitter );
+
         /* -----------------        FAST FLOW COLLECTOR                   ----------------- */
         // This one will collect the counts from the workers and add them to the ascii vector
         collectCounts collectCounts(&ascii, &file);
+        counts.add_collector(collectCounts);
+
         /* -----------------        FAST FLOW MAP Creation (Huffman Tree) ----------------- */
         mapWorker createMap(&myMap, NUM_OF_THREADS, &file);
+
         /* -----------------        FAST FLOW MAP Application (FARM)      ----------------- */
         ff_Farm<ff_task_t, ff_task_t> mapApp( [&file]() {
             std::vector<std::unique_ptr<ff_node> > W;
@@ -126,16 +130,19 @@ int main(int argc, char* argv[]) {
                 W.push_back(make_unique<mapApply>(&file));
             }
             return W;
-        }() );
+        }(),createMap);
+
         /* -----------------        FAST FLOW CALCULATE INDICES           ----------------- */
         // This one calculates the positions of the vector of strings from which each thread will read
         calcIndices calcIdx(&writePositions, &Starts, &Ends, &writePos, &file);
+        mapApp.add_collector(calcIdx);
+
         /* -----------------        FAST FLOW APPLY BIT                   ----------------- */
         // This one will apply transform the string of bits into bytes
         applyBit appBit(NUM_OF_THREADS);
         /* -----------------        FAST FLOW PIPELINE                    ----------------- */
         // This one is the complete pipeline of all the previous nodes
-        ff_Pipe<> pipe(counts, collectCounts, createMap, mapApp, calcIdx, appBit);
+        ff_Pipe<> pipe(counts, mapApp, appBit);
         pipe.run_and_wait_end();
         {
             utimer writeTime("Write file", &timers[1]);
