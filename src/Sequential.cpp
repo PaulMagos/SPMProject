@@ -70,41 +70,51 @@ int main(int argc, char* argv[])
     encFile += encFileName;
 
     ifstream myFile (inputFile, ifstream::binary | ifstream::ate);
-    ofstream outputFile(encFile, ios::binary | ios::out);
     uintmax_t fileSize = myFile.tellg();
     vector<long> timers(4,0);
     string file;
     if(print) cout << "Starting Sequential Test on file: " << inputFile << " Size: ~"
     << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
     {
-        utimer total("Total", &timers[2]);
+        // utimer total("Total", &timers[2]);
+        utimer total("Total");
         {
-            utimer t("Read File", &timers[0]);
-            readFile(myFile, &file, fileSize);
+            // utimer t("Read File", &timers[0]);
+            utimer t2("Read File");
+            utils::read(&myFile, &file, fileSize);
         }
-        count(&ascii, file);
-        Node::createMap(Node::buildTree(ascii), &myMap);
-        createOutput(&file, myMap);
-        toBytes(&file);
         {
-            utimer timer("Write to file", &timers[1]);
-            write(file, &outputFile);
+            utimer timer("Count");        
+            count(&ascii, file);
+        }
+        {
+            utimer timer("Create Map");
+            Node::createMap(Node::buildTree(ascii), &myMap);
+        }
+        {
+            utimer timer("Apply Map");
+            createOutput(&file, myMap);
+        }
+        {
+            utimer timer("To Bytes");
+            toBytes(&file);
+        }
+        {
+            // utimer timer("Write to file", &timers[1]);
+            utimer timer("Write to file");
+            utils::write(encFile, file, 0);
         }
     }
-    // Time without read and write
-    timers[3] = timers[2] - timers[0] - timers[1];
-    timers[0] = 0;
-    timers[1] = 0;
-    uintmax_t writePos = file.size()*8;
-    utils::writeResults("Sequential", encFileName, fileSize, writePos, 1, timers, false, false, 0, print, csvPath);
+    // // Time without read and write
+    // timers[3] = timers[2] - timers[0] - timers[1];
+    // timers[0] = 0;
+    // timers[1] = 0;
+    // uintmax_t writePos = file.size()*8;
+    // utils::writeResults("Sequential", encFileName, fileSize, writePos, 1, timers, false, false, 0, print, csvPath);
     return 0;
 }
 
-void readFile(ifstream &myFile, string* file, uintmax_t size){
-    *file = string(size, ' ');
-    myFile.seekg(0);
-    myFile.read(&(*file)[0], size);
-}
+
 
 void count(vector<uintmax_t>* ascii, const string& file){
     for (char i : file) (*ascii)[i]++;
@@ -132,7 +142,3 @@ void toBytes(string* bits){
     *bits = output;
 }
 
-void write(const string& bits, ofstream* outputFile, uintmax_t writePos){
-    (*outputFile).seekp(writePos/8);
-    (*outputFile).write((bits).c_str(), (bits).size());
-}

@@ -79,15 +79,15 @@ testsbig:
 		make test$$test; \
 	done
 
-testverybig:
-	@for test in $(testverybig); do \
+testsverybig:
+	@for test in $(testsverybig); do \
 		make test$$test; \
 	done
 
 testtiny:
 	make test1
 
-tests: testtiny testsmall testsbig testverybig
+tests: testtiny testsmall testsbig testsverybig
 testscores: testsmall testsbig
 
 
