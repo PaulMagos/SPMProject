@@ -8,6 +8,9 @@ CFLAGS = -std=c++17
 ifeq ($(PRINT), true)
 	CFLAGS += $(PRINTF_FLAG)
 endif
+ifeq ($(FTH), true)
+	CFLAGS += -DFTH
+endif
 # Comment/Uncomment for not using/using default FF mapping
 CFLAGS += -DNO_DEFAULT_MAPPING
 CFLAGS_O3 += -O3 $(CFLAGS)
@@ -21,12 +24,15 @@ CPPFILES = $(wildcard $(SRCS)/*.cpp)
 .SUFFIXES:
 .SUFFIXES: .cpp .o
 
-TARGET =  $(BIN)FastFlow $(BIN)ThreadPool $(BIN)Sequential
+TARGET =  $(BIN)FastFlow $(BIN)ThreadPool # $(BIN)Sequential
 TARGETNO3 =  $(BIN)NO3FastFlow $(BIN)NO3ThreadPool $(BIN)NO3Sequential
 
 # PRINT OBJS
 OBJS = $(patsubst $(SRCS)/%.c, $(BIN)/%.o, $(BIN))
 NO3OBJS = $(patsubst $(SRCS)/%.c, $(BIN)/NO3%.o, $(SRCS))
+
+$(BIN)ThreadPoolM.o: $(SRCS)ThreadPool.cpp
+	$(CC) $(CFLAGS_O3) -c $< -o $@
 
 $(BIN)FastFlow.o: $(SRCS)FastFlow.cpp
 	$(CC) -pthread $(CFLAGS_O3) $(INCLUDES) -c $< -o $@
@@ -59,10 +65,11 @@ cleanall:
 genFiles:
 	./src/utils/files.sh
 
-testsbig = 5 6 7 8
-testsmall = 1 2 3 4
+testsverybig = 7 8
+testsbig = 5 6
+testsmall = 2 3 4
 
-testsmall: all
+testsmall:
 	@for test in $(testsmall); do \
 		make test$$test; \
 	done
@@ -72,7 +79,17 @@ testsbig:
 		make test$$test; \
 	done
 
-tests: testsmall testsbig
+testverybig:
+	@for test in $(testverybig); do \
+		make test$$test; \
+	done
+
+testtiny:
+	make test1
+
+tests: testtiny testsmall testsbig testverybig
+testscores: testsmall testsbig
+
 
 testsNames = test1 test2 test3 test4 test5 test6 test7 test8
 
@@ -86,9 +103,10 @@ ifneq ($(THREADS), 1)
 endif
 
 
-$(testsNames): 
-	@$(SEQ)
-	@echo "Done $@.txt Sequential"
+#$(testsNames): 
+	# @$(SEQ)
+	# @echo "Done $@.txt Sequential"
+$(testsNames):
 	@$(FF)
 	@echo "Done $@.txt FastFlow"
 	@$(TP)

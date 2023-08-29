@@ -11,6 +11,12 @@
 #define ASCII_MAX 256
 using namespace std;
 
+#ifdef FTH
+    bool forceThreads = true;
+#else
+    bool forceThreads = false;
+#endif
+
 namespace utils{
     void countFrequency(string* file, vector<uintmax_t>* uAscii, mutex* writeAsciiMutex){
         vector<uintmax_t> ascii(ASCII_MAX, 0);
@@ -149,20 +155,20 @@ namespace utils{
 
     void optimal(int* tasks, int* nw, uintmax_t fileSize){
         auto division = (uintmax_t)(fileSize/100000);
-        if (division < *nw) {
+        if (division < *nw && !forceThreads) {
             *nw = 1;
             *tasks = 1;
         }else
             *tasks = (uintmax_t)(division / *nw);
         // Nearest power of 2
-        *nw = pow(2, ceil(log2(*nw)));
+        if(!forceThreads) *nw = pow(2, ceil(log2(*nw)));
         *tasks = pow(2, ceil(log2(*tasks)));
-        if (*tasks < *nw){
+        if (*tasks < *nw and !forceThreads){
             uintmax_t tmp = *tasks;
             *tasks = *nw;
             *nw = tmp;
         }
-        if(*nw > thread::hardware_concurrency()) *nw = thread::hardware_concurrency();
+        if(*nw > thread::hardware_concurrency() and !forceThreads) *nw = thread::hardware_concurrency();
     }
 
     void read(uintmax_t fileSize, ifstream* in, vector<string>* file, int nw){
