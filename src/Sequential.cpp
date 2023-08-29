@@ -20,11 +20,9 @@ using namespace std;
  */
 #define OPT_LIST "hi:p:"
 
-void readFile(ifstream &myFile, string* file, uintmax_t size);
 void count(vector<uintmax_t>* ascii, const string& file);
 void createOutput(string* file, map<uintmax_t, string> myMap);
 void toBytes(string* bits);
-void write(const string& bits, ofstream* outputFile, uintmax_t writePos=0);
 
 #ifdef PRINT
     bool print = true;
@@ -79,38 +77,24 @@ int main(int argc, char* argv[])
         // utimer total("Total", &timers[2]);
         utimer total("Total");
         {
-            // utimer t("Read File", &timers[0]);
-            utimer t2("Read File");
+             utimer t("Read File", &timers[0]);
             utils::read(&myFile, &file, fileSize);
         }
-        {
-            utimer timer("Count");        
             count(&ascii, file);
-        }
-        {
-            utimer timer("Create Map");
             Node::createMap(Node::buildTree(ascii), &myMap);
-        }
-        {
-            utimer timer("Apply Map");
             createOutput(&file, myMap);
-        }
-        {
-            utimer timer("To Bytes");
             toBytes(&file);
-        }
         {
-            // utimer timer("Write to file", &timers[1]);
-            utimer timer("Write to file");
+            utimer timer("Write to file", &timers[1]);
             utils::write(encFile, file, 0);
         }
     }
-    // // Time without read and write
-    // timers[3] = timers[2] - timers[0] - timers[1];
-    // timers[0] = 0;
-    // timers[1] = 0;
-    // uintmax_t writePos = file.size()*8;
-    // utils::writeResults("Sequential", encFileName, fileSize, writePos, 1, timers, false, false, 0, print, csvPath);
+    // Time without read and write
+    timers[3] = timers[2] - timers[0] - timers[1];
+    timers[0] = 0;
+    timers[1] = 0;
+    uintmax_t writePos = file.size()*8;
+    utils::writeResults("Sequential", encFileName, fileSize, writePos, 1, timers, false, false, 0, print, csvPath);
     return 0;
 }
 
