@@ -12,7 +12,7 @@ ifeq ($(FTH), true)
 	CFLAGS += -DFTH
 endif
 # Comment/Uncomment for not using/using default FF mapping
-CFLAGS += -DNO_DEFAULT_MAPPING
+#CFLAGS += -DNO_DEFAULT_MAPPING
 CFLAGS_O3 += -O3 $(CFLAGS)
 
 # Path: src/
@@ -24,7 +24,7 @@ CPPFILES = $(wildcard $(SRCS)/*.cpp)
 .SUFFIXES:
 .SUFFIXES: .cpp .o
 
-TARGET =  $(BIN)FastFlow $(BIN)ThreadPool # $(BIN)Sequential
+TARGET =  $(BIN)FastFlow $(BIN)ThreadPool $(BIN)Sequential
 TARGETNO3 =  $(BIN)NO3FastFlow $(BIN)NO3ThreadPool $(BIN)NO3Sequential
 
 # PRINT OBJS
@@ -103,10 +103,9 @@ ifneq ($(THREADS), 1)
 endif
 
 
-#$(testsNames): 
-	# @$(SEQ)
-	# @echo "Done $@.txt Sequential"
 $(testsNames):
+	@$(SEQ)
+	@echo "Done $@.txt Sequential"
 	@$(FF)
 	@echo "Done $@.txt FastFlow"
 	@$(TP)
