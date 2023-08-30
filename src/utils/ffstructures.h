@@ -174,21 +174,19 @@ struct applyBit : ff_node_t<ff_bit_byte_t> {
         uintmax_t chunk = inA->Tasks/nw;
         FF_PARFOR_BEGIN(apply, i, 0, inA->Tasks, 1, chunk, nw){
             uintmax_t j = 0;
-            string tmp;
             uint8_t byte = 0;
             for (j = (*Starts)[i]; j < (*file)[i].size(); j+=8) {
                 for (uintmax_t k = 0; k < 8; k++) {
                     byte = ((*file)[i][j+k]=='1') | byte << 1 ;
                 }
-                tmp.append((char*) (&byte), 1);
+                out[i].append((char*) (&byte), 1);
                 byte = 0;
             }
             if(i!=inA->Tasks-1){
                 for (int k = 0; k < 8 - (*Ends)[i]; k++) byte = ((*file)[i][j-8+k]=='1') | byte << 1;
                 for (int k = 0; k < (*Ends)[i]; k++) byte = ((*file)[i+1][k]=='1') | byte << 1;
-                tmp.append((char*) (&byte), 1);
+                out[i].append((char*) (&byte), 1);
             }
-            out[i] = tmp;
         }FF_PARFOR_END(apply);
         (*file) = out;
         return EOS;

@@ -20,7 +20,7 @@ using namespace std;
  */
 #define OPT_LIST "hi:p:"
 
-void count(vector<uintmax_t>* ascii, const string& file);
+void count(vector<uintmax_t>* ascii, string* file);
 void createOutput(string* file, map<uintmax_t, string> myMap);
 void toBytes(string* bits);
 
@@ -74,13 +74,12 @@ int main(int argc, char* argv[])
     if(print) cout << "Starting Sequential Test on file: " << inputFile << " Size: ~"
     << utils::ConvertSize(fileSize, 'M') << "MB" << endl;
     {
-        // utimer total("Total", &timers[2]);
-        utimer total("Total");
+         utimer total("Total", &timers[2]);
         {
-             utimer t("Read File", &timers[0]);
+            utimer t("Read File", &timers[0]);
             utils::read(&myFile, &file, fileSize);
         }
-            count(&ascii, file);
+            count(&ascii, &file);
             Node::createMap(Node::buildTree(ascii), &myMap);
             createOutput(&file, myMap);
             toBytes(&file);
@@ -100,8 +99,8 @@ int main(int argc, char* argv[])
 
 
 
-void count(vector<uintmax_t>* ascii, const string& file){
-    for (char i : file) (*ascii)[i]++;
+void count(vector<uintmax_t>* ascii, string* file){
+    for (char i : (*file)) (*ascii)[i]++;
 }
 
 void createOutput(string* inputFile, map<uintmax_t, string> myMap) {
