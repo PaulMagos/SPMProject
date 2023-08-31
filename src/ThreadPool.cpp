@@ -258,7 +258,7 @@ void tobytes(vector<string>* bits, vector<uintmax_t>* writePositions, uintmax_t*
         Start = End;
         End = (8 - ((*bits)[i].size()-Start)%8)%8;
         if (i == Tasks-1)
-            (*bits)[i] += (string(8-((*bits)[i].size()-Start)%8, '0'));
+            (*bits)[i].append(string(8-((*bits)[i].size()-Start)%8, '0'));
         (*writePositions)[i] = (*writePos);
         pool.QueueJob([Start, End, bits1 = &(*bits), i, capture1 = &output[i]]{
             utils::toByte(Start, End, bits1, i, capture1);

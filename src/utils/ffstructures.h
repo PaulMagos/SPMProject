@@ -164,7 +164,7 @@ struct calcIndices : ff_node_t<ff_apply_map_t>{
 };
 
 struct applyBit : ff_node_t<ff_bit_byte_t> {
-    applyBit(int nw): nw(nw) {};
+    applyBit(int nw, string encFile): nw(nw), encFile(encFile) {};
     ff_bit_byte_t *svc(ff_bit_byte_t *inA) override {
         vector<string> out = vector<string>(inA->Tasks);
         vector<string> *file = inA->file;
@@ -172,8 +172,10 @@ struct applyBit : ff_node_t<ff_bit_byte_t> {
         vector<uintmax_t> *Starts = inA->Starts;
         vector<uintmax_t> *Ends = inA->Ends;
         uintmax_t chunk = inA->Tasks/nw;
+        mutex writeFile;
+        ofstream outputFile(encFile,  ios::binary);
         FF_PARFOR_BEGIN(apply, i, 0, inA->Tasks, 1, chunk, nw){
-            uintmax_t j = 0;
+            uintmax_t j;
             uint8_t byte = 0;
             for (j = (*Starts)[i]; j < (*file)[i].size(); j+=8) {
                 for (uintmax_t k = 0; k < 8; k++) {
@@ -187,11 +189,21 @@ struct applyBit : ff_node_t<ff_bit_byte_t> {
                 for (int k = 0; k < (*Ends)[i]; k++) byte = ((*file)[i+1][k]=='1') | byte << 1;
                 out[i].append((char*) (&byte), 1);
             }
+        #ifndef TIME
+            {
+            unique_lock<mutex> lock(writeFile);
+            (outputFile).seekp((*writePositions)[i] / 8);
+            (outputFile).write(out[i].c_str(), out[i].size());
+            }
+        #endif
         }FF_PARFOR_END(apply);
-        (*file) = out;
+        #ifdef TIME
+            (*file) = out;
+        #endif
         return EOS;
     }
     int nw;
+    string encFile;
 };
 
 #endif //SPMPROJECT_FFSTRUCTURES_H

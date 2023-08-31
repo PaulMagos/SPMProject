@@ -139,15 +139,17 @@ int main(int argc, char* argv[]) {
 
         /* -----------------        FAST FLOW APPLY BIT                   ----------------- */
         // This one will apply transform the string of bits into bytes
-        applyBit appBit(NUM_OF_THREADS);
+        applyBit appBit(NUM_OF_THREADS, encFile);
         /* -----------------        FAST FLOW PIPELINE                    ----------------- */
         // This one is the complete pipeline of all the previous nodes
         ff_Pipe<> pipe(counts, mapApp, appBit);
         pipe.run_and_wait_end();
+        #ifdef TIME
         {
             utimer writeTime("Write file", &timers[1]);
             utils::write(encFile, file, writePositions, Tasks);
         }
+        #endif
     }
 
     // Time without read and write
