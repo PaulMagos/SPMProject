@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
         utimer timer("Total", &timers[2]);
         // Start thread pool
         pool.Start(NUM_OF_THREADS);
-        #if not defined(MINE)
+        #if not defined(TIME)
             /* READ AND WRITE ARE NOT CONSIDERED AS A UNIQUE OPERATION SINCE WE
              *
              * CONSIDER THEM AS A PART OF THE PROCESS
