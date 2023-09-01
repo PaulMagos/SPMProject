@@ -98,18 +98,18 @@ namespace utils{
 
     void optimal(int* tasks, int* nw, uintmax_t fileSize){
         auto division = (uintmax_t)(fileSize/100000);
-        if (division < *nw && !forceThreads) {
-            *nw = 1;
+        if (division < *nw) {
+            if(!forceThreads) *nw = 1;
             *tasks = 1;
         }else
             *tasks = (uintmax_t)(division / *nw);
         // Nearest power of 2
         if(!forceThreads) *nw = pow(2, ceil(log2(*nw)));
         *tasks = pow(2, ceil(log2(*tasks)));
-        if (*tasks < *nw and !forceThreads){
+        if (*tasks < *nw){
             uintmax_t tmp = *tasks;
             *tasks = *nw;
-            *nw = tmp;
+            if(!forceThreads) *nw = tmp;
         }
         if(*nw > thread::hardware_concurrency() and !forceThreads) *nw = thread::hardware_concurrency();
     }
