@@ -219,14 +219,14 @@ void count(vector<uintmax_t>* ascii, vector<string>* file){
     for (int i = 0; i < Tasks; i++){
         pool.QueueJob([capture0 = &(*file)[i],
                               capture2 = &(*ascii),
-                              &writeAsciiMutex] { utils::countFrequency(capture0, capture2, &writeAsciiMutex); });
+                              capture4= &writeAsciiMutex] { utils::countFrequency(capture0, capture2, capture4); });
     }
     while (pool.busy());
 }
 
 void createOutput(vector<string>* file, const map<uintmax_t,string>& myMap) {
     for (int i = 0; i < Tasks; i++)
-        pool.QueueJob([&myMap, capture0 = &(*file), i] { utils::toBits(myMap, capture0, i); });
+        pool.QueueJob([myMap, capture0 = &(*file), i] { utils::toBits(myMap, capture0, i); });
     while (pool.busy());
 }
 
