@@ -11,6 +11,9 @@ endif
 ifeq ($(FTH), true)
 	CFLAGS += -DFTH
 endif
+ifeq ($(TIME), true)
+	CFLAGS += -DTIME
+endif
 # Comment/Uncomment for not using/using default FF mapping
 #CFLAGS += -DNO_DEFAULT_MAPPING
 CFLAGS_O3 += -O3 $(CFLAGS)
@@ -87,7 +90,7 @@ testsverybig:
 testtiny:
 	make test1
 
-tests: testtiny testsmall testsbig testsverybig
+tests: testsmall testsbig testsverybig
 testscores: testsmall testsbig
 
 
@@ -97,15 +100,15 @@ SEQ=$(BIN)Sequential -i $@.txt -p enc$@.bin
 TP=$(BIN)ThreadPool -i $@.txt -p enc$@.bin
 FF=$(BIN)FastFlow -i $@.txt -p enc$@.bin
 # IF FLAG IS GREATER THAN 1, THREAD_FLAG IS ADDED TO CFLAGS
-ifneq ($(THREADS), 1)
+ifneq ($(THREADS), 0)
 	TP += $(THREAD_FLAG)
 	FF += $(THREAD_FLAG)
 endif
 
 
 $(testsNames):
-	@$(SEQ)
-	@echo "Done $@.txt Sequential"
+	@#$(SEQ)
+	@#echo "Done $@.txt Sequential"
 	@$(FF)
 	@echo "Done $@.txt FastFlow"
 	@$(TP)
