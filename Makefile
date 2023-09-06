@@ -1,4 +1,4 @@
-CC = g++
+CC = g++ -pthread
 THREADS = 1
 INCLUDES = -I /usr/local/include/ff
 PRINTF_FLAG = -DPRINT
@@ -107,8 +107,8 @@ endif
 
 
 $(testsNames):
-	@#$(SEQ)
-	@#echo "Done $@.txt Sequential"
+	@$(SEQ)
+	@echo "Done $@.txt Sequential"
 	@$(FF)
 	@echo "Done $@.txt FastFlow"
 	@$(TP)
