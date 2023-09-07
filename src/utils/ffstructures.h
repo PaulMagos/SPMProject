@@ -69,9 +69,12 @@ struct ff_bit_byte_t{
 struct Emitter: ff_monode_t<ff_task_t> {
     Emitter(int nw, vector<ff_task_t*>* tasks):nw(nw), tasks(tasks) {};
     ff_task_t *svc(ff_task_t*) {
+        ff::ffTime(START_TIME);
         for (int i = 0; i < tasks->size(); i++) {
             ff_send_out_to(tasks->operator[](i), i % nw);
         }
+        ff::ffTime(STOP_TIME);
+        printf("Emit %d Time = %g\n", nw, ff::ffTime(GET_TIME));
         return EOS;
     }
     int nw;
@@ -91,12 +94,17 @@ struct Worker : ff_node_t<ff_task_t> {
 struct collectCounts: ff_node_t<ff_task_t> {
     collectCounts(vector<uintmax_t> *ascii, vector<string>* file): ascii(ascii), file(file) {};
     ff_task_t *svc(ff_task_t *inA) override {
+        if(nt==0) ff::ffTime(START_TIME);
         ff_task_t &A = *inA;
         nt++;
         for (int i = 0; i < ASCII_MAX; i++)
             this->ascii->operator[](i) += A.localAscii[i];
         string* line = A.file;
-        if(nt == A.Tasks) ff_send_out(new ff_map_t(ascii, A.Tasks, file));
+        if(nt == A.Tasks) {
+            ff_send_out(new ff_map_t(ascii, A.Tasks, file));
+            ff::ffTime(STOP_TIME);
+            printf("Collect 1st Farm Time = %g\n", ff::ffTime(GET_TIME));
+        }
         return GO_ON;
     }
     vector<uintmax_t> *ascii;
@@ -107,11 +115,14 @@ struct collectCounts: ff_node_t<ff_task_t> {
 struct mapWorker : ff_node_t<ff_map_t> {
     mapWorker(map<uintmax_t, string> *myMap, int nw, vector<string>* file): myMap(myMap), nw(nw), file(file) {};
     ff_map_t *svc(ff_map_t *inA) override {
+        ff::ffTime(START_TIME);
         Node::createMap(Node::buildTree(*inA->ascii), myMap);
         for (int i = 0; i < inA->Tasks; i++) {
             auto* task = new ff_apply_map_t(this->myMap, inA->Tasks, &(*file)[i]);
             ff_send_out(task, i%nw);
         }
+        ff::ffTime(STOP_TIME);
+        printf("Map Create and Emit for 2nd Farm %d Time = %g\n", nw, ff::ffTime(GET_TIME));
         return GO_ON;
     }
     map<uintmax_t, string>* myMap;
@@ -138,6 +149,7 @@ struct calcIndices : ff_node_t<ff_apply_map_t>{
     calcIndices(vector<uintmax_t>* writePositions, vector<uintmax_t>* Starts, vector<uintmax_t>* Ends, uintmax_t* writePos, vector<string>* file) :
             writePositions(writePositions), Starts(Starts), Ends(Ends), writePos(writePos), file(file) {};
     ff_apply_map_t *svc(ff_apply_map_t *inA) override {
+        if(ntasks==0) ff::ffTime(START_TIME);
         ntasks++;
         if (ntasks == inA->Tasks) {
             int Start, End = 0;
@@ -152,6 +164,8 @@ struct calcIndices : ff_node_t<ff_apply_map_t>{
                 *writePos += ((*file)[i].size()-Start)+End;
             }
             ff_send_out(new ff_bit_byte_t(file, ntasks, writePositions, Starts, Ends, writePos));
+            ff::ffTime(STOP_TIME);
+            printf("Collect 2nd Farm Time = %g\n", ff::ffTime(GET_TIME));
         }
         return GO_ON;
     }
