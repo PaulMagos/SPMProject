@@ -122,9 +122,13 @@ int main(int argc, char* argv[])
 
     /* -----------------                ENCODE FILE           ----------------- */
     {
-        utimer timer("Total", &timers[2]);
+//        utimer timer("Total", &timers[2]);
+        utimer timer("Total");
         // Start thread pool
-        pool.Start(NUM_OF_THREADS);
+        {
+            utimer ti("PoolStart");
+            pool.Start(NUM_OF_THREADS);
+        }
         #if not defined(TIME)
             /* READ AND WRITE ARE NOT CONSIDERED AS A UNIQUE OPERATION SINCE WE
              *
@@ -158,7 +162,8 @@ int main(int argc, char* argv[])
         #else
             /* -----------------        READ FILE             ----------------- */
             {
-                utimer t("Read File", &timers[0]);
+//                utimer t("Read File", &timers[0]);
+                utimer t("Read File");
                 utils::read(fileSize, &in, &file, Tasks);
             }
 
@@ -166,7 +171,10 @@ int main(int argc, char* argv[])
             count(&ascii, &file);
 
             /* -----------------        CREATE MAP            ----------------- */
-            Node::createMap(Node::buildTree(ascii), &myMap);
+            {
+                utimer t1("Map Create");
+                Node::createMap(Node::buildTree(ascii), &myMap);
+            }
 
             /* -----------------        CREATE OUTPUT         ----------------- */
             createOutput(&file, myMap);
@@ -176,12 +184,16 @@ int main(int argc, char* argv[])
 
             /* -----------------        WRITE TO FILE         ----------------- */
             {
-                utimer t("Write to File", &timers[1]);
+//                utimer t("Write to File", &timers[1]);
+                utimer t("Write to File");
                 utils::write(encFile, file, writePositions, Tasks);
             }
         #endif
         // Stop thread pool
-        pool.Stop();
+        {
+            utimer ti("PoolStop");
+            pool.Stop();
+        }
     }
 
     /* -----------------      TIME WITHOUT READ AND WRITE     ----------------- */
@@ -216,17 +228,24 @@ void readFrequencies(ifstream* myFile, uintmax_t len, vector<string>* file, vect
 
 void count(vector<uintmax_t>* ascii, vector<string>* file){
     mutex writeAsciiMutex;
-    for (int i = 0; i < Tasks; i++){
-        pool.QueueJob([capture0 = &(*file)[i],
-                              capture2 = &(*ascii),
-                              capture4= &writeAsciiMutex] { utils::countFrequency(capture0, capture2, capture4); });
+    {
+        utimer t("OverheadCount");
+        for (int i = 0; i < Tasks; i++){
+            pool.QueueJob([capture0 = &(*file)[i],
+                                  capture2 = &(*ascii),
+                                  capture4= &writeAsciiMutex] { utils::countFrequency(capture0, capture2, capture4); });
+        }
     }
     while (pool.busy());
 }
 
 void createOutput(vector<string>* file, const map<uintmax_t,string>& myMap) {
-    for (int i = 0; i < Tasks; i++)
-        pool.QueueJob([myMap, capture0 = &(*file), i] { utils::toBits(myMap, capture0, i); });
+    utimer timer("ApplyMap");
+    {
+        utimer t("OverheadApplyMap");
+        for (int i = 0; i < Tasks; i++)
+            pool.QueueJob([myMap, capture0 = &(*file), i] { utils::toBits(myMap, capture0, i); });
+    }
     while (pool.busy());
 }
 
@@ -251,41 +270,32 @@ void writeToFile(vector<string>* bits, const string& encodedFile){
 }
 
 void tobytes(vector<string>* bits, vector<uintmax_t>* writePositions, uintmax_t* writePos){
+    {
+        utimer trt("ToBytes");
     vector<string> output(Tasks);
-    vector<std::thread> threads;
     uint8_t Start, End = 0;
-    for (int i = 0; i < Tasks; i++) {
-        Start = End;
-        End = (8 - ((*bits)[i].size()-Start)%8)%8;
-        if (i == Tasks-1)
-            (*bits)[i].append(string(8-((*bits)[i].size()-Start)%8, '0'));
-        (*writePositions)[i] = (*writePos);
-        pool.QueueJob([Start, End, bits1 = &(*bits), i, capture1 = &output[i]]{
-            utils::toByte(Start, End, bits1, i, capture1);
-        });
-        (*writePos) += (((*bits)[i].size()-Start)+End);
+    {
+        utimer t("OverheadToBytes");
+        for (int i = 0; i < Tasks; i++) {
+            Start = End;
+            End = (8 - ((*bits)[i].size()-Start)%8)%8;
+            if (i == Tasks-1)
+                (*bits)[i].append(string(8-((*bits)[i].size()-Start)%8, '0'));
+            (*writePositions)[i] = (*writePos);
+            pool.QueueJob([Start, End, bits1 = &(*bits), i, capture1 = &output[i]]{
+                utils::toByte(Start, End, bits1, i, capture1);
+            });
+            (*writePos) += ((((*bits)[i].size()-Start)+End));
+        }
     }
     while (pool.busy());
     *bits = output;
+    }
 }
 
 void wWrite(uint8_t Start, uint8_t End, vector<string>* bits, int pos, uintmax_t writePos, ofstream* outputFile, mutex* fileMutex){
     string output;
-    uint8_t value = 0;
-    int i;
-    for (i = Start; i < (*bits)[pos].size(); i+=8) {
-        for (uint8_t n = 0; n < 8; n++)
-            value = ((*bits)[pos][i+n]=='1') | value << 1;
-        output.append((char*) (&value), 1);
-        value = 0;
-    }
-    if (pos != (*bits).size()-1) {
-        for (uint32_t n = 0; n < 8-End; n++)
-            value = ((*bits)[pos][i-8+n]=='1') | value << 1;
-        for (i = 0; i < End; i++)
-            value = ((*bits)[pos+1][i]=='1') | value << 1;
-        output.append((char*) (&value), 1);
-    }
+    utils::toByte(Start, End, &(*bits), pos, &output);
     {
         unique_lock<mutex> lock((*fileMutex));
         (*outputFile).seekp(writePos/8);

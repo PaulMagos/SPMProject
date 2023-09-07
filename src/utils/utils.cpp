@@ -46,14 +46,15 @@ namespace utils{
         uint8_t value = 0;
         int i;
         for (i = Start; i < (*bits)[pos].size(); i+=8) {
+            if (i+8>((*bits)[pos].size())) break;
             for (uint8_t n = 0; n < 8; n++)
                 value = ((*bits)[pos][i+n]=='1') | value << 1;
             output.append((char*) (&value), 1);
             value = 0;
         }
         if (pos != (*bits).size()-1) {
-            for (uint32_t n = 0; n < 8-End; n++)
-                value = ((*bits)[pos][i-8+n]=='1') | value << 1;
+            for (uint32_t n = i-8; n < (*bits)[pos].size(); n++)
+                value = ((*bits)[pos][n]=='1') | value << 1;
             for (i = 0; i < End; i++)
                 value = ((*bits)[pos+1][i]=='1') | value << 1;
             output.append((char*) (&value), 1);

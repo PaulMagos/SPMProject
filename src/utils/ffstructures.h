@@ -173,11 +173,12 @@ struct applyBit : ff_node_t<ff_bit_byte_t> {
         vector<uintmax_t> *Ends = inA->Ends;
         uintmax_t chunk = inA->Tasks/nw;
         mutex writeFile;
-        ofstream outputFile(encFile,  ios::binary);
+        ofstream outputFile(encFile,  ios::binary|ios::out);
         FF_PARFOR_BEGIN(apply, i, 0, inA->Tasks, 1, chunk, nw){
             uintmax_t j;
             uint8_t byte = 0;
             for (j = (*Starts)[i]; j < (*file)[i].size(); j+=8) {
+                if (j+8>((*file)[i].size())) break;
                 for (uintmax_t k = 0; k < 8; k++) {
                     byte = ((*file)[i][j+k]=='1') | byte << 1 ;
                 }
@@ -185,7 +186,7 @@ struct applyBit : ff_node_t<ff_bit_byte_t> {
                 byte = 0;
             }
             if(i!=inA->Tasks-1){
-                for (int k = 0; k < 8 - (*Ends)[i]; k++) byte = ((*file)[i][j-8+k]=='1') | byte << 1;
+                for (int k = j-8; k < (*file)[i].size(); k++) byte = ((*file)[i][k]=='1') | byte << 1;
                 for (int k = 0; k < (*Ends)[i]; k++) byte = ((*file)[i+1][k]=='1') | byte << 1;
                 out[i].append((char*) (&byte), 1);
             }

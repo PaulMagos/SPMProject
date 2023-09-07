@@ -81,8 +81,14 @@ int main(int argc, char* argv[])
         }
             count(&ascii, &file);
             Node::createMap(Node::buildTree(ascii), &myMap);
+        {
+            utimer timer("ApplyMap");
             createOutput(&file, myMap);
+        }
+        {
+            utimer timer("ToBytes");
             toBytes(&file);
+        }
         {
             utimer timer("Write to file", &timers[1]);
             utils::write(encFile, file, 0);
