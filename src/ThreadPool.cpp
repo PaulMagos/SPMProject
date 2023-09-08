@@ -122,8 +122,7 @@ int main(int argc, char* argv[])
 
     /* -----------------                ENCODE FILE           ----------------- */
     {
-//        utimer timer("Total", &timers[2]);
-        utimer timer("Total");
+        utimer timer("Total", &timers[2]);
         // Start thread pool
         {
             utimer ti("PoolStart");
@@ -162,8 +161,7 @@ int main(int argc, char* argv[])
         #else
             /* -----------------        READ FILE             ----------------- */
             {
-//                utimer t("Read File", &timers[0]);
-                utimer t("Read File");
+                utimer t("Read File", &timers[0]);
                 utils::read(fileSize, &in, &file, Tasks);
             }
 
@@ -184,8 +182,7 @@ int main(int argc, char* argv[])
 
             /* -----------------        WRITE TO FILE         ----------------- */
             {
-//                utimer t("Write to File", &timers[1]);
-                utimer t("Write to File");
+                utimer t("Write to File", &timers[1]);
                 utils::write(encFile, file, writePositions, Tasks);
             }
         #endif
