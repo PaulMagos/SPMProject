@@ -97,28 +97,8 @@ int main(int argc, char* argv[]) {
             utimer readTime("Read file", &timers[0]);
             utils::read(fileSize, &in, &file, Tasks);
         }
-        vector<ff_task_t*> tasks = vector<ff_task_t*>(Tasks);
-        for (size_t i = 0; i < Tasks; i++) {
-            tasks[i] = new ff_task_t(&file[i], i, Tasks);
-        }
         /* -----------------        FAST FLOW EMITTER FOR 1st FARM        ----------------- */
-        Emitter emitter(NUM_OF_THREADS, &tasks);
-
-        /* -----------------        FAST FLOW 1st FARM                    ----------------- */
-        // Create farm with 1 emitter and NUM_OF_THREADS workers
-        // This one will count the occurrences of each character
-        ff_Farm<ff_task_t, ff_task_t> counts( []() {
-            std::vector<std::unique_ptr<ff_node> > W;
-            for(size_t i=0;i<NUM_OF_THREADS;++i) {
-                W.push_back(make_unique<Worker>());
-            }
-            return W;
-        }(), emitter );
-
-        /* -----------------        FAST FLOW COLLECTOR                   ----------------- */
-        // This one will collect the counts from the workers and add them to the ascii vector
-        collectCounts collectCounts(&ascii, &file);
-        counts.add_collector(collectCounts);
+        Emitter emitter(NUM_OF_THREADS, new ff_task_t(Tasks, &file, &ascii));
 
         /* -----------------        FAST FLOW MAP Creation (Huffman Tree) ----------------- */
         mapWorker createMap(&myMap, NUM_OF_THREADS, &file);
@@ -142,7 +122,7 @@ int main(int argc, char* argv[]) {
         applyBit appBit(NUM_OF_THREADS, encFile);
         /* -----------------        FAST FLOW PIPELINE                    ----------------- */
         // This one is the complete pipeline of all the previous nodes
-        ff_Pipe<> pipe(counts, mapApp, appBit);
+        ff_Pipe<> pipe(emitter, mapApp, appBit);
         pipe.run_and_wait_end();
         #ifdef TIME
         {

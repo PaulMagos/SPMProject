@@ -20,22 +20,11 @@ using namespace std;
 using namespace ff;
 
 struct ff_task_t{
-    ff_task_t(string* file, int i, int tasks) : file(file), index(i), Tasks(tasks) {
-        localAscii = vector<uintmax_t>(ASCII_MAX, 0);
+    ff_task_t(int tasks, vector<string>* file, vector<uintmax_t>* ascii) : Tasks(tasks), file(file), ascii(ascii) {
     };
-    string *file;
-    int index;
     int Tasks;
-    vector<uintmax_t> localAscii;
-};
-
-struct ff_map_t{
-    ff_map_t(vector<uintmax_t>* ascii, int tasks, vector<string>* file) :
-            ascii(ascii), Tasks(tasks), file(file){
-    }
-    vector<uintmax_t> * ascii;
     vector<string>* file;
-    int Tasks;
+    vector<uintmax_t>* ascii;
 };
 
 struct ff_apply_map_t{
@@ -44,12 +33,6 @@ struct ff_apply_map_t{
     }
     map<uintmax_t, string>* myMap;
     string* line;
-    int Tasks;
-};
-
-struct ff_calc_idx_t{
-    ff_calc_idx_t(vector<string>* file, int Tasks) : file(file), Tasks(Tasks) {};
-    vector<string>* file;
     int Tasks;
 };
 
@@ -66,55 +49,39 @@ struct ff_bit_byte_t{
 };
 
 
-struct Emitter: ff_monode_t<ff_task_t> {
-    Emitter(int nw, vector<ff_task_t*>* tasks):nw(nw), tasks(tasks) {};
-    ff_task_t *svc(ff_task_t*) {
+struct Emitter: ff_node_t<ff_task_t> {
+    Emitter(int nw, ff_task_t *task):nw(nw), task(task) {};
+    ff_task_t *svc(ff_task_t*) override {
         ff::ffTime(START_TIME);
-        for (int i = 0; i < tasks->size(); i++) {
-            ff_send_out_to(tasks->operator[](i), i % nw);
-        }
+        vector<string>* file = task->file;
+        vector<uintmax_t>* ascii = task->ascii;
+        vector<uintmax_t> loc(ASCII_MAX, 0);
+        auto count = [&](const long int i, vector<uintmax_t>& loc) {
+            for (auto j: (*file)[i]){
+                loc[j]++;}
+        };
+        auto reduce = [](vector<uintmax_t>& global, const vector<uintmax_t> elem){
+            for(int j=0; j<ASCII_MAX; j++){
+                (global)[j] += elem[j];
+            }
+        };
+
+        ParallelForReduce<vector<uintmax_t>> prf(nw, true);
+        long chunk = task->Tasks/nw;
+
+        prf.parallel_reduce(*ascii, loc, 0, task->Tasks, 1, chunk, count, reduce);
+        ff_send_out(task);
         ff::ffTime(STOP_TIME);
-        printf("Emit %d Time = %g\n", nw, ff::ffTime(GET_TIME));
+        printf("ParForReduce %d Time = %g\n", nw, ff::ffTime(GET_TIME));
         return EOS;
     }
     int nw;
-    vector<ff_task_t*>* tasks;
+    ff_task_t* task;
 };
 
-struct Worker : ff_node_t<ff_task_t> {
-    ff_task_t *svc(ff_task_t *inA) override {
-        // this is the parallel_for provided by the ff_Map class
-        for (int i = 0; i < (*inA->file).size(); i++)
-            inA->localAscii[(*inA->file)[i]]++;
-        ff_send_out(inA);
-        return GO_ON;
-    }
-};
-
-struct collectCounts: ff_node_t<ff_task_t> {
-    collectCounts(vector<uintmax_t> *ascii, vector<string>* file): ascii(ascii), file(file) {};
-    ff_task_t *svc(ff_task_t *inA) override {
-        if(nt==0) ff::ffTime(START_TIME);
-        ff_task_t &A = *inA;
-        nt++;
-        for (int i = 0; i < ASCII_MAX; i++)
-            this->ascii->operator[](i) += A.localAscii[i];
-        string* line = A.file;
-        if(nt == A.Tasks) {
-            ff_send_out(new ff_map_t(ascii, A.Tasks, file));
-            ff::ffTime(STOP_TIME);
-            printf("Collect 1st Farm Time = %g\n", ff::ffTime(GET_TIME));
-        }
-        return GO_ON;
-    }
-    vector<uintmax_t> *ascii;
-    vector<string>* file;
-    int nt = 0;
-};
-
-struct mapWorker : ff_node_t<ff_map_t> {
+struct mapWorker : ff_node_t<ff_task_t> {
     mapWorker(map<uintmax_t, string> *myMap, int nw, vector<string>* file): myMap(myMap), nw(nw), file(file) {};
-    ff_map_t *svc(ff_map_t *inA) override {
+    ff_task_t *svc(ff_task_t *inA) override {
         ff::ffTime(START_TIME);
         Node::createMap(Node::buildTree(*inA->ascii), myMap);
         for (int i = 0; i < inA->Tasks; i++) {
