@@ -126,6 +126,6 @@ int main(int argc, char* argv[]) {
     timers[3] = timers[2] - timers[0] - timers[1];
     timers[0] = 0;
     timers[1] = 0;
-    utils::writeResults("FastFlow", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, true, false, Tasks, print, csvPath);
+    utils::writeResults("FastFlowMap", encFileName, fileSize, writePos, NUM_OF_THREADS, timers, true, false, Tasks, print, csvPath);
     return 0;
 }
