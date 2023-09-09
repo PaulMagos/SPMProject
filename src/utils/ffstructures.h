@@ -6,6 +6,7 @@
 #define SPMPROJECT_FFSTRUCTURES_H
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 #include <map>
 #include "./Node.h"
@@ -25,27 +26,10 @@ struct ff_task_t{
     int Tasks;
     vector<string>* file;
     vector<uintmax_t>* ascii;
-};
-
-struct ff_apply_map_t{
-    ff_apply_map_t(map<uintmax_t, string>* myMap, int tasks, string* line) :
-            myMap(myMap), Tasks(tasks), line(line){
-    }
-    map<uintmax_t, string>* myMap;
-    string* line;
-    int Tasks;
-};
-
-struct ff_bit_byte_t{
-    ff_bit_byte_t(vector<string>* file, int Tasks, vector<uintmax_t>* writePositions, vector<uintmax_t>* Starts,
-                  vector<uintmax_t>* Ends, uintmax_t* writePos) : file(file), Tasks(Tasks), writePositions(writePositions),
-                                                                  Starts(Starts), Ends(Ends), writePos(writePos) {};
     vector<uintmax_t>* writePositions;
     vector<uintmax_t>* Starts;
     vector<uintmax_t>* Ends;
     uintmax_t* writePos;
-    vector<string>* file;
-    int Tasks;
 };
 
 
@@ -84,12 +68,19 @@ struct mapWorker : ff_node_t<ff_task_t> {
     ff_task_t *svc(ff_task_t *inA) override {
         ff::ffTime(START_TIME);
         Node::createMap(Node::buildTree(*inA->ascii), myMap);
-        for (int i = 0; i < inA->Tasks; i++) {
-            auto* task = new ff_apply_map_t(this->myMap, inA->Tasks, &(*file)[i]);
-            ff_send_out(task, i%nw);
-        }
+        auto Apply = [&](const long i){
+            string tmp;
+            for(auto c: (*file)[i]) {
+                tmp.append(myMap->operator[](c));
+            }
+            (*file)[i] = tmp;
+        };
+        ParallelFor pfr(nw, true);
+        int chunk = inA->Tasks/nw;
+        pfr.parallel_for(0, inA->Tasks, 1, chunk, Apply, nw);
+        ff_send_out(inA);
         ff::ffTime(STOP_TIME);
-        printf("Map Create and Emit for 2nd Farm %d Time = %g\n", nw, ff::ffTime(GET_TIME));
+        printf("Map Create and Apply %d Time = %g\n", nw, ff::ffTime(GET_TIME));
         return GO_ON;
     }
     map<uintmax_t, string>* myMap;
@@ -97,43 +88,29 @@ struct mapWorker : ff_node_t<ff_task_t> {
     int nw;
 };
 
-struct mapApply : ff_node_t<ff_apply_map_t> {
-    mapApply(vector<string>* file): file(file){};
-    ff_apply_map_t *svc(ff_apply_map_t *inA) override {
-        string tmp;
-        string line = *inA->line;
-        for (int i = 0; i < line.size(); i++) {
-            tmp.append((*inA->myMap)[(line)[i]]);
-        }
-        (*inA->line) = tmp;
-        ff_send_out(inA);
-        return GO_ON;
-    }
-    vector<string>* file;
-};
-
-struct calcIndices : ff_node_t<ff_apply_map_t>{
+struct calcIndices : ff_node_t<ff_task_t>{
     calcIndices(vector<uintmax_t>* writePositions, vector<uintmax_t>* Starts, vector<uintmax_t>* Ends, uintmax_t* writePos, vector<string>* file) :
             writePositions(writePositions), Starts(Starts), Ends(Ends), writePos(writePos), file(file) {};
-    ff_apply_map_t *svc(ff_apply_map_t *inA) override {
-        if(ntasks==0) ff::ffTime(START_TIME);
-        ntasks++;
-        if (ntasks == inA->Tasks) {
-            int Start, End = 0;
-            for (int i = 0; i< ntasks; i++){
-                Start = End;
-                (*Starts)[i] = Start;
-                if(i==ntasks-1)
-                    (*file)[i].append(string(8-(((*file)[i].size() - Start)%8), '0'));
-                End = (8 - ((*file)[i].size()-Start)%8) % 8;
-                (*Ends)[i] = End;
-                (*writePositions)[i] = *writePos;
-                *writePos += ((*file)[i].size()-Start)+End;
-            }
-            ff_send_out(new ff_bit_byte_t(file, ntasks, writePositions, Starts, Ends, writePos));
-            ff::ffTime(STOP_TIME);
-            printf("Collect 2nd Farm Time = %g\n", ff::ffTime(GET_TIME));
+    ff_task_t *svc(ff_task_t *inA) override {
+        ff::ffTime(START_TIME);
+        int Start, End = 0;
+        for (int i = 0; i< inA->Tasks; i++){
+            Start = End;
+            (*Starts)[i] = Start;
+            if(i==inA->Tasks-1)
+                (*file)[i].append(string(8-(((*file)[i].size() - Start)%8), '0'));
+            End = (8 - ((*file)[i].size()-Start)%8) % 8;
+            (*Ends)[i] = End;
+            (*writePositions)[i] = *writePos;
+            *writePos += ((*file)[i].size()-Start)+End;
         }
+        inA->Ends = Ends;
+        inA->Starts = Starts;
+        inA->writePos = writePos;
+        inA->writePositions = writePositions;
+        ff_send_out(inA);
+        ff::ffTime(STOP_TIME);
+        printf("Calculate Indices Time = %g\n", ff::ffTime(GET_TIME));
         return GO_ON;
     }
     vector<uintmax_t>* writePositions;
@@ -141,12 +118,12 @@ struct calcIndices : ff_node_t<ff_apply_map_t>{
     vector<uintmax_t>* Ends;
     uintmax_t* writePos;
     vector<string>* file;
-    int ntasks = 0;
 };
 
-struct applyBit : ff_node_t<ff_bit_byte_t> {
-    applyBit(int nw, string encFile): nw(nw), encFile(encFile) {};
-    ff_bit_byte_t *svc(ff_bit_byte_t *inA) override {
+struct applyBit : ff_node_t<ff_task_t> {
+    applyBit(int nw, string encFile): nw(nw), encFile(std::move(encFile)) {};
+    ff_task_t *svc(ff_task_t *inA) override {
+        ff::ffTime(START_TIME);
         vector<string> out = vector<string>(inA->Tasks);
         vector<string> *file = inA->file;
         vector<uintmax_t> *writePositions = inA->writePositions;
@@ -182,6 +159,8 @@ struct applyBit : ff_node_t<ff_bit_byte_t> {
         #ifdef TIME
             (*file) = out;
         #endif
+        ff::ffTime(STOP_TIME);
+        printf("ToBytes Time = %g\n", ff::ffTime(GET_TIME));
         return EOS;
     }
     int nw;

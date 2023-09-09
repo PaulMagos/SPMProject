@@ -100,29 +100,19 @@ int main(int argc, char* argv[]) {
         /* -----------------        FAST FLOW EMITTER FOR 1st FARM        ----------------- */
         Emitter emitter(NUM_OF_THREADS, new ff_task_t(Tasks, &file, &ascii));
 
-        /* -----------------        FAST FLOW MAP Creation (Huffman Tree) ----------------- */
-        mapWorker createMap(&myMap, NUM_OF_THREADS, &file);
-
-        /* -----------------        FAST FLOW MAP Application (FARM)      ----------------- */
-        ff_Farm<ff_task_t, ff_task_t> mapApp( [&file]() {
-            std::vector<std::unique_ptr<ff_node> > W;
-            for(size_t i=0;i<NUM_OF_THREADS;++i) {
-                W.push_back(make_unique<mapApply>(&file));
-            }
-            return W;
-        }(),createMap);
+        /* -----------------        FAST FLOW MAP (Huffman Tree)          ----------------- */
+        mapWorker mapApp(&myMap, NUM_OF_THREADS, &file);
 
         /* -----------------        FAST FLOW CALCULATE INDICES           ----------------- */
         // This one calculates the positions of the vector of strings from which each thread will read
         calcIndices calcIdx(&writePositions, &Starts, &Ends, &writePos, &file);
-        mapApp.add_collector(calcIdx);
 
         /* -----------------        FAST FLOW APPLY BIT                   ----------------- */
         // This one will apply transform the string of bits into bytes
         applyBit appBit(NUM_OF_THREADS, encFile);
         /* -----------------        FAST FLOW PIPELINE                    ----------------- */
         // This one is the complete pipeline of all the previous nodes
-        ff_Pipe<> pipe(emitter, mapApp, appBit);
+        ff_Pipe<> pipe(emitter, mapApp, calcIdx, appBit);
         pipe.run_and_wait_end();
         #ifdef TIME
         {
